@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.env
+venv/
+.venv/
+
+# Imágenes generadas (output del boletín)
+*.png
+*.jpg
+*.jpeg
+
+# Logs
+*.log
+
+# Windows
+Thumbs.db
+desktop.ini
