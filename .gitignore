@@ -21,3 +21,7 @@ venv/
 # Windows
 Thumbs.db
 desktop.ini
+
+# EXCEPCIÓN: permitir carpeta image/ para assets de referencia
+!image/
+!image/**/*
