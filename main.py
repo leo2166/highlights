@@ -141,10 +141,23 @@ def obtener_pensamiento_dinamico():
     }
 
 
-def generar_texto_boletin(tasas, noticia, pensamiento, efemeride_universal, efemeride_venezuela, dias_restantes, fecha_formateada, html_format=False):
+def generar_texto_boletin(tasas, noticia, pensamiento, efemeride_universal, efemeride_venezuela, clima, fecha_formateada, html_format=False):
     """
     Formatea el boletín en texto plano o HTML para WhatsApp, Telegram o Consola.
     """
+    ciudad = getattr(config, "CLIMA_CIUDAD", "Caracas")
+    if clima and len(clima) >= 2:
+        if html_format:
+            clima_texto = f"""🌤️ <b>ESTADO DEL TIEMPO ({ciudad.upper()})</b>
+• <b>Hoy:</b> {clima[0]['emoji']} {clima[0]['descripcion']} | {clima[0]['temp_max']} / {clima[0]['temp_min']}
+• <b>Mañana:</b> {clima[1]['emoji']} {clima[1]['descripcion']} | {clima[1]['temp_max']} / {clima[1]['temp_min']}"""
+        else:
+            clima_texto = f"""🌤️ ESTADO DEL TIEMPO ({ciudad.upper()})
+• Hoy: {clima[0]['emoji']} {clima[0]['descripcion']} | {clima[0]['temp_max']} / {clima[0]['temp_min']}
+• Mañana: {clima[1]['emoji']} {clima[1]['descripcion']} | {clima[1]['temp_max']} / {clima[1]['temp_min']}"""
+    else:
+        clima_texto = f"🌤️ <b>ESTADO DEL TIEMPO ({ciudad.upper()})</b>\nInformación no disponible." if html_format else f"🌤️ ESTADO DEL TIEMPO ({ciudad.upper()})\nInformación no disponible."
+
     if html_format:
         return f"""✨ <b>HIGHLIGHTS DIARIO</b> ✨
 📅 <b>Fecha:</b> {fecha_formateada}
@@ -167,8 +180,7 @@ def generar_texto_boletin(tasas, noticia, pensamiento, efemeride_universal, efem
 ₿ <b>Binance USDT/VES:</b> {tasas.get('binance', 'No disponible')} Bs.
 <i>BCV Tasa Oficial · Binance P2P (SELL) · Fecha Valor: {tasas['fecha']}</i>
 
-⚽ <b>MUNDIAL DE FÚTBOL 2026</b>
-Faltan <b>{dias_restantes} días</b> para el pitazo inicial.
+{clima_texto}
 
 ---
 <i>Generado automáticamente | ✍️ Ing. LF</i>"""
@@ -194,8 +206,7 @@ Enlace: {noticia['link']}
 ₿ Binance USDT/VES: {tasas.get('binance', 'No disponible')} Bs.
 BCV Tasa Oficial · Binance P2P (SELL) · Fecha Valor: {tasas['fecha']}
 
-⚽ MUNDIAL DE FÚTBOL 2026
-Faltan {dias_restantes} días para el pitazo inicial (11 de Junio de 2026).
+{clima_texto}
 
 ---
 Generado automáticamente | ✍️ Ing. LF"""
@@ -295,9 +306,9 @@ def main():
     print(f"✅ Efeméride Universal: {efemeride_universal}")
     print(f"✅ Efeméride Venezuela: {efemeride_venezuela}")
 
-    # 2. Obtener Resultados del Mundial (API ESPN)
+    # 2. Obtener Estado del Tiempo (Open-Meteo)
     print("")
-    resultados_mundial = scraper.obtener_resultados_mundial()
+    clima = scraper.obtener_clima()
 
     # 3. Web Scraping BCV
     print("")
@@ -311,25 +322,31 @@ def main():
     print("")
     noticia = scraper.obtener_noticia_economica()
 
-    # 5. Generar Imagen con Pillow (Flyer)
+    # 5. Obtener titulares de múltiples medios
+    print("")
+    titulares_medios = scraper.obtener_titulares_multiples()
+
+    # 6. Generar Imagen con Pillow (Flyer)
     print("")
     datos_db = {
         "pensamiento": pensamiento,
         "efemeride_universal": efemeride_universal,
         "efemeride_venezuela": efemeride_venezuela,
-        "resultados_mundial": resultados_mundial
+        "clima": clima,
+        "titulares_medios": titulares_medios
     }
     image_path = generator.crear_boletin_grafico(tasas, noticia, datos_db)
     
     # Generar Versión 2 (Formato Cuadrado Premium)
     image_path_sq = generator.crear_boletin_grafico_cuadrado(tasas, noticia, datos_db)
 
-    # Calcular cuenta regresiva para el texto plano
-    dias_mundial = generator.calcular_dias_mundial()
+    # Generar Versión 3 (Formato Vertical 1200×1500 — Instagram Feed / LinkedIn)
+    image_path_1200 = generator.crear_boletin_1200x1500(tasas, noticia, datos_db)
 
-    # 6. Generar textos del boletín
-    texto_consola = generar_texto_boletin(tasas, noticia, pensamiento, efemeride_universal, efemeride_venezuela, dias_mundial, fecha_formateada, html_format=False)
-    texto_telegram = generar_texto_boletin(tasas, noticia, pensamiento, efemeride_universal, efemeride_venezuela, dias_mundial, fecha_formateada, html_format=True)
+
+    # 7. Generar textos del boletín
+    texto_consola = generar_texto_boletin(tasas, noticia, pensamiento, efemeride_universal, efemeride_venezuela, clima, fecha_formateada, html_format=False)
+    texto_telegram = generar_texto_boletin(tasas, noticia, pensamiento, efemeride_universal, efemeride_venezuela, clima, fecha_formateada, html_format=True)
 
     # Imprimir en consola la versión en texto plano para que el usuario pueda copiarla fácilmente
     print("\n" + "=" * 50)
@@ -338,7 +355,7 @@ def main():
     print(texto_consola)
     print("=" * 50 + "\n")
 
-    # 7. Envío Automatizado a Telegram (si está configurado)
+    # 8. Envío Automatizado a Telegram (si está configurado)
     enviar_a_telegram(image_path, texto_telegram)
 
     print("\n🎉 ¡Proceso completado exitosamente! El boletín gráfico se encuentra listo.")

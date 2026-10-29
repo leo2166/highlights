@@ -22,6 +22,8 @@ venv/
 Thumbs.db
 desktop.ini
 
-# EXCEPCIÓN: permitir carpeta image/ para assets de referencia
+# EXCEPCIÓN: permitir carpetas de assets e imágenes de referencia
 !image/
 !image/**/*
+!assets/
+!assets/**/*

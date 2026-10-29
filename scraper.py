@@ -1,7 +1,11 @@
+import os
+import json
 import requests
 from bs4 import BeautifulSoup
 import re
 import urllib3
+from datetime import datetime
+import config
 
 # Deshabilitar advertencias de certificados SSL inseguros por si acaso (muy común con portales locales y VPNs)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -186,43 +190,329 @@ def obtener_tasa_binance():
 
     return "No disponible"
 
-def obtener_resultados_mundial():
+def obtener_clima():
     """
-    Obtiene los resultados de los partidos del Mundial desde la API de la webapp del usuario.
-    Prioriza los resultados de 'yesterday' y luego los de 'today' que ya tengan marcador.
+    Obtiene el estado del tiempo para hoy y mañana desde la API de Open-Meteo
+    para la ubicación configurada (por defecto Caracas, Venezuela).
+    Retorna una lista con diccionarios de datos del clima para hoy y mañana.
     """
-    url = "https://copa26lf.vercel.app/api/matches"
-    print("⚽ [MUNDIAL 2026] Extrayendo resultados desde copa26lf.vercel.app...")
+    lat = getattr(config, "CLIMA_LATITUD", 10.4806)
+    lon = getattr(config, "CLIMA_LONGITUD", -66.9036)
+    ciudad = getattr(config, "CLIMA_CIUDAD", "Caracas")
     
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto"
+    
+    print(f"🌤️ [CLIMA] Obteniendo estado del tiempo para {ciudad} (Open-Meteo)...")
     try:
         response = requests.get(url, headers=HEADERS, verify=False, timeout=15)
         if response.status_code == 200:
             data = response.json()
+            daily = data.get("daily", {})
             
-            resultados_finales = []
+            # Mapeo de códigos de clima WMO a descripciones y emojis
+            wmo_codes = {
+                0: ("Despejado", "☀️"),
+                1: ("Parcialmente Despejado", "🌤️"),
+                2: ("Parcialmente Nublado", "⛅"),
+                3: ("Nublado", "☁️"),
+                45: ("Neblina", "🌫️"),
+                48: ("Neblina Escarchada", "🌫️"),
+                51: ("Llovizna Ligera", "🌦️"),
+                53: ("Llovizna Moderada", "🌦️"),
+                55: ("Llovizna Densa", "🌧️"),
+                56: ("Llovizna Helada Ligera", "🌧️"),
+                57: ("Llovizna Helada Densa", "🌧️"),
+                61: ("Lluvia Ligera", "🌧️"),
+                63: ("Lluvia Moderada", "🌧️"),
+                65: ("Lluvia Fuerte", "🌧️"),
+                66: ("Lluvia Helada Ligera", "🌧️"),
+                67: ("Lluvia Helada Fuerte", "🌧️"),
+                71: ("Nieve Ligera", "❄️"),
+                73: ("Nieve Moderada", "❄️"),
+                75: ("Nieve Fuerte", "❄️"),
+                77: ("Granizo Fino", "❄️"),
+                80: ("Chubascos Ligeros", "🌦️"),
+                81: ("Chubascos Moderados", "🌧️"),
+                82: ("Chubascos Violentos", "⛈️"),
+                85: ("Chubascos Nieve Ligeros", "❄️"),
+                86: ("Chubascos Nieve Fuertes", "❄️"),
+                95: ("Tormenta Eléctrica", "⛈️"),
+                96: ("Tormenta con Granizo Leve", "⛈️"),
+                99: ("Tormenta con Granizo Fuerte", "⛈️")
+            }
             
-            # Solo resultados de AYER (partidos finalizados)
-            yesterday = data.get("yesterday", [])
-            for match in yesterday:
-                home = match.get("homeTeam", "???")
-                away = match.get("awayTeam", "???")
-                h_score = match.get("homeScore", "0")
-                a_score = match.get("awayScore", "0")
-                resultados_finales.append(f"{home} {h_score} - {a_score} {away}")
-            
-            if resultados_finales:
-                print(f"✅ [MUNDIAL 2026] Se encontraron {len(resultados_finales)} resultados.")
-                # Retornar máximo 5 resultados más recientes
-                return resultados_finales[:5]
-            else:
-                print("ℹ️ [MUNDIAL 2026] No se encontraron marcadores disponibles en la API.")
-                return []
+            clima_dias = []
+            # Obtener hoy y mañana (índices 0 y 1)
+            for i in range(2):
+                fecha_raw = daily["time"][i]
+                max_temp = daily["temperature_2m_max"][i]
+                min_temp = daily["temperature_2m_min"][i]
+                code = daily["weather_code"][i]
+                
+                desc, emoji = wmo_codes.get(code, ("Desconocido", "🌡️"))
+                
+                fecha_obj = datetime.strptime(fecha_raw, "%Y-%m-%d")
+                dias_nombre = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+                dia_str = "Hoy" if i == 0 else "Mañana"
+                
+                clima_dias.append({
+                    "dia": dia_str,
+                    "nombre_dia": dias_nombre[fecha_obj.weekday()],
+                    "fecha": fecha_obj.strftime("%d/%m"),
+                    "temp_max": f"{max_temp:.1f}°C".replace(".", ","),
+                    "temp_min": f"{min_temp:.1f}°C".replace(".", ","),
+                    "descripcion": desc,
+                    "emoji": emoji
+                })
+                
+            print(f"✅ [CLIMA] Estado del tiempo obtenido con éxito para {ciudad}.")
+            return clima_dias
         else:
-            print(f"⚠️ [MUNDIAL 2026] La API respondió con código {response.status_code}")
+            print(f"⚠️ [CLIMA] La API de clima respondió con código {response.status_code}")
     except Exception as e:
-        print(f"❌ [MUNDIAL 2026] Error al conectar con la webapp: {str(e)}")
+        print(f"❌ [CLIMA] Error al conectar o procesar el clima: {str(e)}")
         
     return []
+
+
+# ── FILTROS TEMÁTICOS: ECONÓMICO Y SOCIAL (EVITAR POLÍTICA / ELECCIONES) ──────
+PALABRAS_EXCLUIR_POLITICA = [
+    'maduro', 'machado', 'chavismo', 'chavista', 'oposici', 'cne', 
+    'eleccion', 'electoral', 'candidat', 'partido', 'asamblea nacional', 
+    'inhabilitad', 'preso politico', 'presos politicos', 'represion', 
+    'diputad', 'regimen', 'golpe de estado', 'tsj', 'fiscal general',
+    'delcy', 'cabello', 'padrino lopez', 'edmundo gonzalez', 'comando con vzla',
+    'politica', 'politico', 'lula', 'bolsonaro', 'presidencia', 'voto',
+    'votacion', 'militante', 'manifestacion politica', 'protesta politica',
+    'pandilla', 'narcotrafic', 'sicari', 'crimen', 'guerra', 'bombardeo',
+    'ataque armado', 'homicidio', 'delincuencia armada'
+]
+
+PALABRAS_TEMAS_ECO_SOC = [
+    'econom', 'dolar', 'bolivar', 'tasa', 'banco', 'bancari', 'comercio', 
+    'comercial', 'empresa', 'empresari', 'negocio', 'produccion', 'petrole', 
+    'gas', 'industria', 'consumo', 'salario', 'sueldo', 'bono', 'pension', 
+    'jubilad', 'import', 'export', 'inflacion', 'costo', 'precio', 'transporte', 
+    'vuelo', 'aeropuerto', 'via', 'vialidad', 'puente', 'obra', 'comunidad', 
+    'vecin', 'salud', 'hospital', 'medic', 'farmacia', 'alimento', 'comida', 
+    'educacion', 'colegio', 'universidad', 'escuela', 'estudiant', 'tecnolog', 
+    'internet', 'luz', 'electrico', 'agua', 'parque', 'cultura', 'teatro', 
+    'turismo', 'zulia', 'maracaibo', 'trabajad', 'empleo'
+]
+
+def es_titular_economico_o_social(titular, es_feed_economico=False):
+    """
+    Verifica que el titular pertenezca al ámbito económico, social, empresarial o comunitario,
+    excluyendo rigurosamente la diatriba y temas partidistas o electorales.
+    """
+    if not titular or len(titular) < 12:
+        return False
+    t_low = titular.lower()
+    
+    # 1. Descartar si contiene palabras estrictamente políticas o partidistas
+    for ex in PALABRAS_EXCLUIR_POLITICA:
+        if re.search(r'\b' + re.escape(ex), t_low):
+            return False
+            
+    # 2. Si proviene de un feed 100% económico verificado, pasa directamente
+    if es_feed_economico:
+        return True
+        
+    # 3. Si proviene de un portal general, debe coincidir con temas económicos/sociales
+    return any(term in t_low for term in PALABRAS_TEMAS_ECO_SOC)
+
+
+def asignar_categoria_y_asset(titular, medio=""):
+    """
+    Asigna una categoría y una imagen local según el texto del titular.
+    Categorías: VENEZUELA, ECONOMÍA, INTERNACIONALES, MARACAIBO, SALUD.
+    """
+    t_low = (titular + " " + medio).lower()
+    base_assets = os.path.join(config.BASE_DIR, "assets", "categories")
+    
+    if any(k in t_low for k in ['zulia', 'maracaibo', 'san francisco', 'cabimas', 'lago', 'puente']):
+        return "MARACAIBO", os.path.join(base_assets, "maracaibo.jpg")
+    if any(k in t_low for k in ['salud', 'medic', 'médic', 'hospital', 'enfermedad', 'farmac', 'virus', 'oms', 'vida saludable']):
+        return "SALUD", os.path.join(base_assets, "salud.jpg")
+    if any(k in t_low for k in ['internacional', 'onu', 'eeuu', 'estados unidos', 'europa', 'mundo', 'global', 'biden', 'trump', 'paz']):
+        return "INTERNACIONALES", os.path.join(base_assets, "internacionales.jpg")
+    if any(k in t_low for k in ['econom', 'finanz', 'dolar', 'dólar', 'bcv', 'banco', 'bancari', 'comercio', 'petroleo', 'petróleo', 'bolsa', 'wall street', 'inflac', 'precio', 'tasa']):
+        return "ECONOMÍA", os.path.join(base_assets, "economia.jpg")
+        
+    return "VENEZUELA", os.path.join(base_assets, "venezuela.jpg")
+
+def extraer_resumen_item(item, titular=""):
+    """
+    Extrae un resumen de 15 a 30 palabras desde el tag description o el contenido del item RSS.
+    """
+    if item and hasattr(item, 'find'):
+        desc_el = item.find('description')
+        if desc_el:
+            raw_desc = BeautifulSoup(desc_el.text, 'html.parser').text.strip()
+            clean_desc = re.sub(r'https?://\S+', '', raw_desc)
+            clean_desc = re.sub(r'\s+', ' ', clean_desc).strip()
+            palabras = [p for p in clean_desc.split() if p]
+            if len(palabras) >= 10:
+                resumen = " ".join(palabras[:24])
+                if not resumen.endswith(('.', '!', '?')):
+                    resumen += "..."
+                return resumen
+                
+    return "El acontecer nacional e internacional destaca importantes avances y análisis de interés colectivo."
+
+def obtener_titulares_multiples(objetivo=5, minimo=4):
+    """
+    Obtiene 5 noticias reales del ámbito ECONÓMICO y SOCIAL con titular,
+    resumen de 15-30 palabras, categoría e imagen contextual para la portada.
+    """
+    import warnings
+    from bs4 import XMLParsedAsHTMLWarning
+    warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+
+    FUENTES_ECONOMICAS_SOCIALES = [
+        {"medio": "El Nacional",      "url": "https://www.el-nacional.com/economia/feed/",         "es_eco": True},
+        {"medio": "Finanzas Digital", "url": "https://www.finanzasdigital.com/feed/",              "es_eco": True},
+        {"medio": "Noticia al Día",   "url": "https://noticiaaldia.com/feed/",                     "es_eco": False},
+        {"medio": "Tal Cual",         "url": "https://talcualdigital.com/seccion/economia/feed/", "es_eco": True},
+        {"medio": "Banca y Negocios", "url": "https://www.bancaynegocios.com/",                   "es_eco": True, "es_web": True},
+        {"medio": "El Pitazo",        "url": "https://elpitazo.net/category/economia/feed/",       "es_eco": True},
+        {"medio": "El Pitazo",        "url": "https://elpitazo.net/category/comunidad/feed/",      "es_eco": False},
+        {"medio": "El Diario",        "url": "https://eldiario.com/seccion/economia/feed/",        "es_eco": True},
+        {"medio": "BBC Mundo",        "url": "https://feeds.bbci.co.uk/mundo/temas/economia/rss.xml", "es_eco": True},
+    ]
+
+    print(f"📰 [TITULARES] Obteniendo noticias del ámbito ECONÓMICO y SOCIAL (Objetivo: {objetivo}, Mínimo: {minimo})...")
+    titulares = []
+    titulares_extra = []
+    titulares_textos_vistos = set()
+
+    def limpiar_titular(texto):
+        if not texto:
+            return ""
+        texto_limpio = BeautifulSoup(texto, 'html.parser').text.strip()
+        texto_limpio = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', texto_limpio).strip()
+        texto_limpio = re.sub(r'[\U00010000-\U0010ffff]', '', texto_limpio)
+        texto_limpio = re.sub(r'[\u2600-\u27BF\uFE00-\uFE0F]', '', texto_limpio)
+        texto_limpio = re.sub(r'\s+', ' ', texto_limpio)
+        texto_limpio = re.sub(r'\s*-\s*(BBC News Mundo|BBC Mundo|Finanzas Digital|Banca y Negocios|Infobae|TalCual|Runrunes|El Diario|Noticia al Día|La Verdad|El Nacional|La Patilla|El Pitazo)$', '', texto_limpio, flags=re.IGNORECASE).strip()
+        texto_limpio = re.sub(r'^[\s\|\-\:\.]+', '', texto_limpio).strip()
+        return texto_limpio
+
+    # Consultar las fuentes especializadas
+    for fuente in FUENTES_ECONOMICAS_SOCIALES:
+        if len(titulares) >= objetivo:
+            break
+        nombre = fuente["medio"]
+        url = fuente["url"]
+        es_eco = fuente.get("es_eco", False)
+        es_web = fuente.get("es_web", False)
+
+        try:
+            response = requests.get(url, headers=HEADERS, verify=False, timeout=7)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                if es_web:
+                    items = soup.select('.post-title a, article h2 a, .entry-title a')
+                else:
+                    items = soup.find_all('item')
+
+                primer_agregado = False
+                for item in items[:8]:
+                    if es_web:
+                        raw_text = item.text.strip() if hasattr(item, 'text') else ""
+                    else:
+                        title_el = item.find('title')
+                        raw_text = title_el.text.strip() if title_el else ""
+
+                    titulo = limpiar_titular(raw_text)
+                    if titulo and len(titulo) > 15 and titulo.lower() not in titulares_textos_vistos:
+                        if es_titular_economico_o_social(titulo, es_eco):
+                            titulares_textos_vistos.add(titulo.lower())
+                            cat, img_local = asignar_categoria_y_asset(titulo, nombre)
+                            resumen = extraer_resumen_item(item if not es_web else None, titulo)
+                            item_data = {
+                                "medio": nombre,
+                                "titular": titulo,
+                                "resumen": resumen,
+                                "categoria": cat,
+                                "imagen_local": img_local
+                            }
+                            if not primer_agregado:
+                                titulares.append(item_data)
+                                print(f"  ✅ [{nombre}] ({cat}): \"{titulo[:50]}...\"")
+                                primer_agregado = True
+                                break
+                            else:
+                                titulares_extra.append(item_data)
+                if not primer_agregado:
+                    print(f"  ℹ️ [{nombre}]: No se encontraron noticias económico-sociales en los primeros titulares.")
+            else:
+                print(f"  ⚠️ [{nombre}]: Código HTTP {response.status_code}")
+        except Exception as e:
+            print(f"  ❌ [{nombre}]: Conexión no disponible o timeout ({str(e)[:35]}...)")
+
+    # Si faltan titulares para llegar al objetivo, usar titulares secundarios válidos
+    if len(titulares) < objetivo and titulares_extra:
+        for extra in titulares_extra:
+            titulares.append(extra)
+            print(f"  ➕ [Extra] [{extra['medio']}]: \"{extra['titular'][:50]}...\"")
+            if len(titulares) >= objetivo:
+                break
+
+    # Respaldo inteligente en Google News enfocado en Economía y Comunidad
+    if len(titulares) < minimo:
+        print("🔄 [RESPALDO] Consultando Google News Venezuela (Economía, Comercio y Comunidad)...")
+        try:
+            gn_url = "https://news.google.com/rss/search?q=venezuela+(economia+OR+comercio+OR+petroleo+OR+salud+OR+educacion+OR+comunidad)+-elecciones+-maduro+-machado+-politica+when:2d&hl=es-419&gl=VE&ceid=VE:es-419"
+            gn_res = requests.get(gn_url, headers=HEADERS, verify=False, timeout=8)
+            if gn_res.status_code == 200:
+                gn_soup = BeautifulSoup(gn_res.content, 'html.parser')
+                for g_item in gn_soup.find_all('item'):
+                    g_title_el = g_item.find('title')
+                    if g_title_el:
+                        raw_t = limpiar_titular(g_title_el.text)
+                        partes = raw_t.rsplit(' - ', 1)
+                        if len(partes) == 2:
+                            g_tit, g_med = partes[0].strip(), partes[1].strip()
+                        else:
+                            g_tit, g_med = raw_t, "Economía & Sociedad"
+
+                        if g_tit and len(g_tit) > 15 and g_tit.lower() not in titulares_textos_vistos:
+                            if es_titular_economico_o_social(g_tit, es_feed_economico=False):
+                                titulares_textos_vistos.add(g_tit.lower())
+                                cat, img_local = asignar_categoria_y_asset(g_tit, g_med)
+                                resumen = extraer_resumen_item(g_item, g_tit)
+                                titulares.append({
+                                    "medio": g_med,
+                                    "titular": g_tit,
+                                    "resumen": resumen,
+                                    "categoria": cat,
+                                    "imagen_local": img_local
+                                })
+                                print(f"  ✅ [Google News Eco/Soc] {g_med}: \"{g_tit[:50]}...\"")
+                                if len(titulares) >= objetivo:
+                                    break
+        except Exception as gn_err:
+            print(f"  ⚠️ Error en respaldo Google News: {str(gn_err)}")
+
+    resultado_final = titulares[:objetivo]
+    
+    # Asegurar que las 5 noticias tengan categorías distintas para máxima riqueza visual
+    CATS_DEFAULT = ["VENEZUELA", "ECONOMÍA", "INTERNACIONALES", "MARACAIBO", "SALUD"]
+    base_assets = os.path.join(config.BASE_DIR, "assets", "categories")
+    cats_vistas = set()
+    for idx, noti in enumerate(resultado_final):
+        cat_actual = noti.get("categoria", "VENEZUELA")
+        if cat_actual in cats_vistas:
+            for alt_cat in CATS_DEFAULT:
+                if alt_cat not in cats_vistas:
+                    noti["categoria"] = alt_cat
+                    noti["imagen_local"] = os.path.join(base_assets, f"{alt_cat.lower()}.jpg")
+                    break
+        cats_vistas.add(noti["categoria"])
+
+    print(f"📰 [TITULARES] Total final: {len(resultado_final)} noticias completas listas para el boletín.")
+    return resultado_final
 
 
 if __name__ == "__main__":
@@ -231,8 +521,10 @@ if __name__ == "__main__":
     tasas = obtener_tasas_bcv()
     noticia = obtener_noticia_economica()
     tasa_binance = obtener_tasa_binance()
+    titulares = obtener_titulares_multiples()
     print("\n--- RESULTADOS DEL TEST ---")
     print(f"Dólar USD: {tasas['usd']}")
     print(f"Euro EUR: {tasas['eur']}")
     print(f"Binance USDT/VES: {tasa_binance}")
     print(f"Noticia: {noticia['titulo']} ({noticia['link']})")
+    print(f"Titulares: {len(titulares)} medios procesados")

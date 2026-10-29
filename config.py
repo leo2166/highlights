@@ -42,15 +42,17 @@ TELEGRAM_TOKEN = ""   # Ej: "1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ"
 TELEGRAM_CHAT_ID = "" # Ej: "-1001234567890" o "123456789"
 
 
-# --- FECHA CRÍTICA: MUNDIAL DE FÚTBOL 2026 ---
-# Fecha de inicio del Mundial de Fútbol 2026 en Norteamérica
-MUNDIAL_FECHA = "2026-06-11"
+# --- CONFIGURACIÓN DEL CLIMA ---
+CLIMA_CIUDAD = "Maracaibo"
+CLIMA_LATITUD = 10.63
+CLIMA_LONGITUD = -71.64
+
 
 
 # --- CONSTANTES DE DISEÑO DEL FLYER (PILLOW) ---
 # Dimensiones de la imagen móvil vertical (Formato óptimo para smartphones)
-CANVAS_WIDTH = 600
-CANVAS_HEIGHT = 800
+CANVAS_WIDTH = 1080
+CANVAS_HEIGHT = 1920
 
 # Paleta de Colores (Minimalista Light Premium - Blanco y Azul Corporativo)
 BG_GRADIENT_START = (255, 255, 255)    # Blanco puro
@@ -70,3 +72,11 @@ FONT_DIR = "C:\\Windows\\Fonts"
 FONT_TITLE = os.path.join(FONT_DIR, "trebucbd.ttf")  # Trebuchet MS Bold
 FONT_BOLD = os.path.join(FONT_DIR, "arialbd.ttf")    # Arial Bold
 FONT_REGULAR = os.path.join(FONT_DIR, "arial.ttf")    # Arial Regular
+
+# Rutas de Fuentes Oswald, Anton y Cursiva (Google Fonts)
+FONT_OSWALD_DIR = os.path.join(BASE_DIR, "fonts")
+FONT_OSWALD_BOLD = os.path.join(FONT_OSWALD_DIR, "Oswald-Bold.ttf")
+FONT_OSWALD_SEMIBOLD = os.path.join(FONT_OSWALD_DIR, "Oswald-SemiBold.ttf")
+FONT_OSWALD_REGULAR = os.path.join(FONT_OSWALD_DIR, "Oswald-Regular.ttf")
+FONT_ANTON = os.path.join(FONT_OSWALD_DIR, "Anton-Regular.ttf")
+FONT_SCRIPT = os.path.join(FONT_OSWALD_DIR, "Caveat-Bold.ttf")
