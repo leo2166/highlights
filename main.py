@@ -3,9 +3,15 @@ import sys
 import io
 
 # Reconfigurar salida estándar para soportar emojis en consolas Windows (UTF-8)
+# Reconfigurar salida estándar para soportar emojis en consolas Windows (UTF-8)
 if sys.platform.startswith('win'):
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    try:
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 from datetime import datetime
 import requests
