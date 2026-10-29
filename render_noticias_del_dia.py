@@ -30,7 +30,7 @@ BG_CARD          = (255, 255, 255, 255)   # Fondo de tarjetas
 BORDER_CARD      = (203, 213, 225, 255)   # Borde suave Slate 300
 BORDER_LIGHT     = (226, 232, 240, 255)   # Borde tenue Slate 200
 TEXT_TITLE       = (15,  23,  42,  255)   # Slate 900 titulares
-TEXT_BODY        = (51,  65,  85,  255)   # Slate 700 resúmenes
+TEXT_BODY        = (0,   0,   0,   255)   # Negro nítido para lectura clara de resúmenes
 TEXT_MUTED       = (100, 116, 139, 255)   # Slate 500 auxiliares
 WARM_BG_START    = (255, 253, 247, 255)   # Crema cálido Frase/Efeméride
 WARM_BG_END      = (254, 247, 234, 255)   # Crema suave dorado
@@ -153,11 +153,11 @@ def crear_portada_editorial(datos_bcv, noticias_5, pensamiento, efemeride, outpu
     
     # Fila 1 Noticias
     f_news_t1      = cargar_fuente("georgiab.ttf", 18)      # Titular fila 1
-    f_news_r1      = cargar_fuente("segoeui.ttf", 13)       # Resumen fila 1
+    f_news_r1      = cargar_fuente("segoeuiz.ttf", 13)      # Resumen fila 1 en negrita itálica
     
     # Fila 2 Noticias
     f_news_t2      = cargar_fuente("georgiab.ttf", 15)      # Titular fila 2
-    f_news_r2      = cargar_fuente("segoeui.ttf", 12)       # Resumen fila 2
+    f_news_r2      = cargar_fuente("segoeuiz.ttf", 12)      # Resumen fila 2 en negrita itálica
     
     # Frase & Efemérides
     f_frase_text   = cargar_fuente("georgiaz.ttf", 22)      # Frase negrita cursiva
@@ -383,10 +383,6 @@ def crear_portada_editorial(datos_bcv, noticias_5, pensamiento, efemeride, outpu
     draw.rounded_rectangle([x_efem, y_bot, x_efem + w_bot, y_bot + h_bot], radius=8, outline=BORDER_CARD, width=1)
     dibujar_pestana_editorial(draw, x_efem, y_bot, 240, 32, "EFEMÉRIDES DE VENEZUELA", f_tab_lg)
     
-    # Retrato Simón Bolívar / prócer
-    img_efem = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
-    pegar_imagen_redondeada(canvas, img_efem, [x_efem + 12, y_bot + 42, x_efem + 155, y_bot + h_bot - 12], radio=6)
-    
     # Formateo inteligente de la efeméride
     efem_texto_raw = efemeride if isinstance(efemeride, str) else efemeride.get("texto", "")
     
@@ -400,6 +396,32 @@ def crear_portada_editorial(datos_bcv, noticias_5, pensamiento, efemeride, outpu
         partes = explicacion.split("|", 1)
         explicacion = partes[0].strip() + ". " + partes[1].strip()
     explicacion = re.sub(r'\s+', ' ', explicacion).strip()
+
+    # Selección de imagen: Bolívar si lo menciona, de lo contrario Escudo Nacional de Venezuela
+    efem_lower = explicacion.lower()
+    box_efem = [x_efem + 12, y_bot + 42, x_efem + 155, y_bot + h_bot - 12]
+    w_box_e = box_efem[2] - box_efem[0]
+    h_box_e = box_efem[3] - box_efem[1]
+
+    if any(k in efem_lower for k in ["bolívar", "bolivar", "libertador"]):
+        img_efem = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+        pegar_imagen_redondeada(canvas, img_efem, box_efem, radio=6)
+    else:
+        escudo_path = os.path.join(BASE_DIR, "assets", "general", "escudo_venezuela.png")
+        if os.path.exists(escudo_path):
+            try:
+                im_esc = Image.open(escudo_path).convert("RGBA")
+                im_esc.thumbnail((w_box_e - 6, h_box_e - 6), Image.Resampling.LANCZOS)
+                px_esc = box_efem[0] + (w_box_e - im_esc.width) // 2
+                py_esc = box_efem[1] + (h_box_e - im_esc.height) // 2
+                canvas.paste(im_esc, (px_esc, py_esc), im_esc)
+            except Exception as e_esc:
+                print("Error pegando Escudo:", e_esc)
+                img_efem = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+                pegar_imagen_redondeada(canvas, img_efem, box_efem, radio=6)
+        else:
+            img_efem = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+            pegar_imagen_redondeada(canvas, img_efem, box_efem, radio=6)
     
     # Titular de fecha
     fecha_efem_header = f"{dia_num} de {mes_nombre.lower()} de {ano_efem}"

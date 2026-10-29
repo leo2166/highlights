@@ -326,7 +326,7 @@ def main():
     print("")
     titulares_medios = scraper.obtener_titulares_multiples()
 
-    # 6. Generar Imagen con Pillow (Flyer)
+    # 6. Generar Boletines Gráficos en sus 3 formatos editoriales
     print("")
     datos_db = {
         "pensamiento": pensamiento,
@@ -335,13 +335,22 @@ def main():
         "clima": clima,
         "titulares_medios": titulares_medios
     }
-    image_path = generator.crear_boletin_grafico(tasas, noticia, datos_db)
     
-    # Generar Versión 2 (Formato Cuadrado Premium)
-    image_path_sq = generator.crear_boletin_grafico_cuadrado(tasas, noticia, datos_db)
+    # Formato 1: Vertical Pantalla Completa Móvil (1080×1920 px - 9:16 WhatsApp / Stories)
+    image_path_vert = os.path.join(config.BASE_DIR, "boletin_editorial_vertical_1080x1920.png")
+    generator.crear_boletin_editorial_vertical_1080x1920(tasas, titulares_medios, pensamiento, efemeride_venezuela, image_path_vert)
+    if os.path.exists(config.ESCRITORIO):
+        generator.crear_boletin_editorial_vertical_1080x1920(tasas, titulares_medios, pensamiento, efemeride_venezuela, os.path.join(config.ESCRITORIO, "boletin_editorial_vertical_1080x1920.png"))
 
-    # Generar Versión 3 (Formato Vertical 1200×1500 — Instagram Feed / LinkedIn)
-    image_path_1200 = generator.crear_boletin_1200x1500(tasas, noticia, datos_db)
+    # Formato 2: Vertical Feed / Portarretrato (1080×1350 px - 4:5 Instagram & WhatsApp)
+    image_path_feed = os.path.join(config.BASE_DIR, "boletin_editorial_feed_1080x1350.png")
+    generator.crear_boletin_editorial_feed_1080x1350(tasas, titulares_medios, pensamiento, efemeride_venezuela, image_path_feed)
+    if os.path.exists(config.ESCRITORIO):
+        generator.crear_boletin_editorial_feed_1080x1350(tasas, titulares_medios, pensamiento, efemeride_venezuela, os.path.join(config.ESCRITORIO, "boletin_editorial_feed_1080x1350.png"))
+
+    # Formato 3: Cuadrado Clásico (1080×1080 px - 1:1 Post Cuadrado)
+    image_path_sq = generator.crear_boletin_grafico_cuadrado(tasas, noticia, datos_db)
+    image_path = image_path_vert
 
 
     # 7. Generar textos del boletín

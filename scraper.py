@@ -344,47 +344,92 @@ def asignar_categoria_y_asset(titular, medio=""):
 def extraer_resumen_item(item, titular=""):
     """
     Extrae un resumen de 15 a 30 palabras desde el tag description o el contenido del item RSS.
+    Retorna None si no logra extraer un resumen válido.
     """
     if item and hasattr(item, 'find'):
         desc_el = item.find('description')
         if desc_el:
             raw_desc = BeautifulSoup(desc_el.text, 'html.parser').text.strip()
+            # Limpiar URLs
             clean_desc = re.sub(r'https?://\S+', '', raw_desc)
+            # Limpiar prefijos de dominios web tipo "www,finanzasdigital.com"
+            clean_desc = re.sub(r'www[\.,][a-zA-Z0-9\.\-_]+\s*', '', clean_desc)
+            # Limpiar firmas de autor tipo "Por: ... Caracas.-"
+            clean_desc = re.sub(r'^Por:\s*[^.\n\-]+(?:[\.\-]\s*|,\s*)?', '', clean_desc, flags=re.IGNORECASE)
+            clean_desc = re.sub(r'^[A-ZÁÉÍÓÚÑa-záéíóúñ\s]+(?:\(EFE\)|Caracas\.-|Maracaibo\.-)\s*', '', clean_desc)
+            # Limpiar guiones y espacios iniciales residuales
+            clean_desc = re.sub(r'^[\s\-\u2013\u2014:,]+', '', clean_desc)
             clean_desc = re.sub(r'\s+', ' ', clean_desc).strip()
             palabras = [p for p in clean_desc.split() if p]
-            if len(palabras) >= 10:
+            if len(palabras) >= 8:
                 resumen = " ".join(palabras[:24])
                 if not resumen.endswith(('.', '!', '?')):
                     resumen += "..."
                 return resumen
-                
-    return "El acontecer nacional e internacional destaca importantes avances y análisis de interés colectivo."
+
+    return None
+
+
+def extraer_resumen_desde_url(url_articulo, timeout=6):
+    """
+    Obtiene el resumen real de un artículo accediendo a su página web.
+    Intenta primero og:description, luego meta description,
+    y finalmente el primer párrafo largo del cuerpo del artículo.
+    """
+    try:
+        resp = requests.get(url_articulo, headers=HEADERS, verify=False, timeout=timeout)
+        if resp.status_code != 200:
+            return None
+        soup = BeautifulSoup(resp.content, 'html.parser')
+
+        for tag in [soup.find('meta', property='og:description'),
+                    soup.find('meta', attrs={'name': 'description'})]:
+            if tag and tag.get('content', '').strip():
+                texto = tag['content'].strip()
+                texto = re.sub(r'https?://\S+', '', texto)
+                texto = re.sub(r'^[\s\-\u2013\u2014:,]+', '', texto)
+                texto = re.sub(r'\s+', ' ', texto).strip()
+                palabras = texto.split()
+                if len(palabras) >= 8:
+                    resumen = " ".join(palabras[:24])
+                    if not resumen.endswith(('.', '!', '?')):
+                        resumen += "..."
+                    return resumen
+
+        # Primer párrafo largo del artículo
+        body = soup.select_one('.entry-content, .post-content, article .content, .article-body')
+        if body:
+            for p in body.find_all('p'):
+                txt = p.text.strip()
+                if len(txt) > 50:
+                    txt = re.sub(r'https?://\S+', '', txt)
+                    txt = re.sub(r'\s+', ' ', txt).strip()
+                    palabras = txt.split()
+                    resumen = " ".join(palabras[:24])
+                    if not resumen.endswith(('.', '!', '?')):
+                        resumen += "..."
+                    return resumen
+    except Exception:
+        pass
+    return None
 
 def obtener_titulares_multiples(objetivo=5, minimo=4):
     """
-    Obtiene 5 noticias reales del ámbito ECONÓMICO y SOCIAL con titular,
-    resumen de 15-30 palabras, categoría e imagen contextual para la portada.
+    Obtiene exactamente 5 noticias categorizadas y coherentes:
+    1. VENEZUELA (Nacional / Desarrollo)
+    2. ECONOMÍA (Bancos / Mercados / Finanzas)
+    3. MARACAIBO (Zulia / Regional)
+    4. INTERNACIONALES (Finanzas / Geopolítica / Comercio global)
+    5. SALUD (Medicina / Bienestar / Hospitales)
+
+    Garantiza que el titular, el resumen, la categoría y la imagen correspondan
+    estrictamente al mismo tema.
     """
     import warnings
     from bs4 import XMLParsedAsHTMLWarning
     warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-    FUENTES_ECONOMICAS_SOCIALES = [
-        {"medio": "El Nacional",      "url": "https://www.el-nacional.com/economia/feed/",         "es_eco": True},
-        {"medio": "Finanzas Digital", "url": "https://www.finanzasdigital.com/feed/",              "es_eco": True},
-        {"medio": "Noticia al Día",   "url": "https://noticiaaldia.com/feed/",                     "es_eco": False},
-        {"medio": "Tal Cual",         "url": "https://talcualdigital.com/seccion/economia/feed/", "es_eco": True},
-        {"medio": "Banca y Negocios", "url": "https://www.bancaynegocios.com/",                   "es_eco": True, "es_web": True},
-        {"medio": "El Pitazo",        "url": "https://elpitazo.net/category/economia/feed/",       "es_eco": True},
-        {"medio": "El Pitazo",        "url": "https://elpitazo.net/category/comunidad/feed/",      "es_eco": False},
-        {"medio": "El Diario",        "url": "https://eldiario.com/seccion/economia/feed/",        "es_eco": True},
-        {"medio": "BBC Mundo",        "url": "https://feeds.bbci.co.uk/mundo/temas/economia/rss.xml", "es_eco": True},
-    ]
-
-    print(f"📰 [TITULARES] Obteniendo noticias del ámbito ECONÓMICO y SOCIAL (Objetivo: {objetivo}, Mínimo: {minimo})...")
-    titulares = []
-    titulares_extra = []
-    titulares_textos_vistos = set()
+    base_assets = os.path.join(config.BASE_DIR, "assets", "categories")
 
     def limpiar_titular(texto):
         if not texto:
@@ -394,125 +439,246 @@ def obtener_titulares_multiples(objetivo=5, minimo=4):
         texto_limpio = re.sub(r'[\U00010000-\U0010ffff]', '', texto_limpio)
         texto_limpio = re.sub(r'[\u2600-\u27BF\uFE00-\uFE0F]', '', texto_limpio)
         texto_limpio = re.sub(r'\s+', ' ', texto_limpio)
-        texto_limpio = re.sub(r'\s*-\s*(BBC News Mundo|BBC Mundo|Finanzas Digital|Banca y Negocios|Infobae|TalCual|Runrunes|El Diario|Noticia al Día|La Verdad|El Nacional|La Patilla|El Pitazo)$', '', texto_limpio, flags=re.IGNORECASE).strip()
+        texto_limpio = re.sub(r'\s*-\s*(DW|BBC News Mundo|BBC Mundo|Finanzas Digital|Banca y Negocios|Infobae|TalCual|Runrunes|El Diario|Noticia al Día|La Verdad|El Nacional|La Patilla|El Pitazo)$', '', texto_limpio, flags=re.IGNORECASE).strip()
         texto_limpio = re.sub(r'^[\s\|\-\:\.]+', '', texto_limpio).strip()
         return texto_limpio
 
-    # Consultar las fuentes especializadas
-    for fuente in FUENTES_ECONOMICAS_SOCIALES:
-        if len(titulares) >= objetivo:
-            break
-        nombre = fuente["medio"]
-        url = fuente["url"]
-        es_eco = fuente.get("es_eco", False)
-        es_web = fuente.get("es_web", False)
+    def extraer_desc_limpia(item):
+        if not item:
+            return ""
+        d_el = item.find('description')
+        if not d_el:
+            return ""
+        raw = BeautifulSoup(d_el.text, 'html.parser').text.strip()
+        clean = re.sub(r'https?://\S+', '', raw)
+        clean = re.sub(r'www[\.,][a-zA-Z0-9\.\-_]+\s*', '', clean)
+        clean = re.sub(r'^Por:\s*[^.\n\-]+(?:[\.\-]\s*|,\s*)?', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^[A-ZÁÉÍÓÚÑa-záéíóúñ\s]+(?:\(EFE\)|Caracas\.-|Maracaibo\.-)\s*', '', clean)
+        clean = re.sub(r'^[\s\-\u2013\u2014:,]+', '', clean)
+        words = clean.strip().split()
+        if len(words) >= 6:
+            res = ' '.join(words[:24])
+            if not res.endswith(('.', '!', '?')):
+                res += '...'
+            return res
+        return ""
 
-        try:
-            response = requests.get(url, headers=HEADERS, verify=False, timeout=7)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                if es_web:
-                    items = soup.select('.post-title a, article h2 a, .entry-title a')
-                else:
-                    items = soup.find_all('item')
+    titulares_por_categoria = {}
+    titulares_vistos = set()
 
-                primer_agregado = False
-                for item in items[:8]:
-                    if es_web:
-                        raw_text = item.text.strip() if hasattr(item, 'text') else ""
-                    else:
-                        title_el = item.find('title')
-                        raw_text = title_el.text.strip() if title_el else ""
+    print("📰 [TITULARES] Obteniendo noticias especializadas por categoría temática...")
 
-                    titulo = limpiar_titular(raw_text)
-                    if titulo and len(titulo) > 15 and titulo.lower() not in titulares_textos_vistos:
-                        if es_titular_economico_o_social(titulo, es_eco):
-                            titulares_textos_vistos.add(titulo.lower())
-                            cat, img_local = asignar_categoria_y_asset(titulo, nombre)
-                            resumen = extraer_resumen_item(item if not es_web else None, titulo)
-                            item_data = {
-                                "medio": nombre,
-                                "titular": titulo,
-                                "resumen": resumen,
-                                "categoria": cat,
-                                "imagen_local": img_local
-                            }
-                            if not primer_agregado:
-                                titulares.append(item_data)
-                                print(f"  ✅ [{nombre}] ({cat}): \"{titulo[:50]}...\"")
-                                primer_agregado = True
-                                break
-                            else:
-                                titulares_extra.append(item_data)
-                if not primer_agregado:
-                    print(f"  ℹ️ [{nombre}]: No se encontraron noticias económico-sociales en los primeros titulares.")
-            else:
-                print(f"  ⚠️ [{nombre}]: Código HTTP {response.status_code}")
-        except Exception as e:
-            print(f"  ❌ [{nombre}]: Conexión no disponible o timeout ({str(e)[:35]}...)")
-
-    # Si faltan titulares para llegar al objetivo, usar titulares secundarios válidos
-    if len(titulares) < objetivo and titulares_extra:
-        for extra in titulares_extra:
-            titulares.append(extra)
-            print(f"  ➕ [Extra] [{extra['medio']}]: \"{extra['titular'][:50]}...\"")
-            if len(titulares) >= objetivo:
-                break
-
-    # Respaldo inteligente en Google News enfocado en Economía y Comunidad
-    if len(titulares) < minimo:
-        print("🔄 [RESPALDO] Consultando Google News Venezuela (Economía, Comercio y Comunidad)...")
-        try:
-            gn_url = "https://news.google.com/rss/search?q=venezuela+(economia+OR+comercio+OR+petroleo+OR+salud+OR+educacion+OR+comunidad)+-elecciones+-maduro+-machado+-politica+when:2d&hl=es-419&gl=VE&ceid=VE:es-419"
-            gn_res = requests.get(gn_url, headers=HEADERS, verify=False, timeout=8)
-            if gn_res.status_code == 200:
-                gn_soup = BeautifulSoup(gn_res.content, 'html.parser')
-                for g_item in gn_soup.find_all('item'):
-                    g_title_el = g_item.find('title')
-                    if g_title_el:
-                        raw_t = limpiar_titular(g_title_el.text)
-                        partes = raw_t.rsplit(' - ', 1)
-                        if len(partes) == 2:
-                            g_tit, g_med = partes[0].strip(), partes[1].strip()
-                        else:
-                            g_tit, g_med = raw_t, "Economía & Sociedad"
-
-                        if g_tit and len(g_tit) > 15 and g_tit.lower() not in titulares_textos_vistos:
-                            if es_titular_economico_o_social(g_tit, es_feed_economico=False):
-                                titulares_textos_vistos.add(g_tit.lower())
-                                cat, img_local = asignar_categoria_y_asset(g_tit, g_med)
-                                resumen = extraer_resumen_item(g_item, g_tit)
-                                titulares.append({
-                                    "medio": g_med,
-                                    "titular": g_tit,
-                                    "resumen": resumen,
-                                    "categoria": cat,
-                                    "imagen_local": img_local
-                                })
-                                print(f"  ✅ [Google News Eco/Soc] {g_med}: \"{g_tit[:50]}...\"")
-                                if len(titulares) >= objetivo:
-                                    break
-        except Exception as gn_err:
-            print(f"  ⚠️ Error en respaldo Google News: {str(gn_err)}")
-
-    resultado_final = titulares[:objetivo]
-    
-    # Asegurar que las 5 noticias tengan categorías distintas para máxima riqueza visual
-    CATS_DEFAULT = ["VENEZUELA", "ECONOMÍA", "INTERNACIONALES", "MARACAIBO", "SALUD"]
-    base_assets = os.path.join(config.BASE_DIR, "assets", "categories")
-    cats_vistas = set()
-    for idx, noti in enumerate(resultado_final):
-        cat_actual = noti.get("categoria", "VENEZUELA")
-        if cat_actual in cats_vistas:
-            for alt_cat in CATS_DEFAULT:
-                if alt_cat not in cats_vistas:
-                    noti["categoria"] = alt_cat
-                    noti["imagen_local"] = os.path.join(base_assets, f"{alt_cat.lower()}.jpg")
+    # ─────────────────────────────────────────────────────────────
+    # 1. SALUD
+    # ─────────────────────────────────────────────────────────────
+    print("  🩺 Buscando noticia de SALUD...")
+    try:
+        r = requests.get('https://elpitazo.net/category/salud/feed/', headers=HEADERS, verify=False, timeout=7)
+        if r.status_code == 200:
+            s = BeautifulSoup(r.content, 'html.parser')
+            for it in s.find_all('item')[:5]:
+                t = limpiar_titular(it.find('title').text)
+                desc = extraer_desc_limpia(it)
+                if t and desc and t.lower() not in titulares_vistos:
+                    titulares_vistos.add(t.lower())
+                    titulares_por_categoria["SALUD"] = {
+                        "medio": "El Pitazo Salud",
+                        "categoria": "SALUD",
+                        "titular": t,
+                        "resumen": desc,
+                        "imagen_local": os.path.join(base_assets, "salud.jpg")
+                    }
+                    print(f"  ✅ [SALUD]: {t[:50]}...")
                     break
-        cats_vistas.add(noti["categoria"])
+    except Exception as e:
+        print(f"  ⚠️ Error en feed de salud: {e}")
 
-    print(f"📰 [TITULARES] Total final: {len(resultado_final)} noticias completas listas para el boletín.")
-    return resultado_final
+    # Respaldo Google News Salud si no se encontró
+    if "SALUD" not in titulares_por_categoria:
+        try:
+            gn_url = 'https://news.google.com/rss/search?q=venezuela+(salud+OR+medicina+OR+hospital+OR+oncologico+OR+farmacia)+when:3d&hl=es-419&gl=VE&ceid=VE:es-419'
+            r = requests.get(gn_url, headers=HEADERS, verify=False, timeout=7)
+            if r.status_code == 200:
+                s = BeautifulSoup(r.content, 'html.parser')
+                it = s.find('item')
+                if it:
+                    parts = limpiar_titular(it.find('title').text).rsplit(' - ', 1)
+                    t = parts[0].strip()
+                    med = parts[1].strip() if len(parts) > 1 else "Salud"
+                    desc = extraer_desc_limpia(it) or t
+                    titulares_por_categoria["SALUD"] = {
+                        "medio": med,
+                        "categoria": "SALUD",
+                        "titular": t,
+                        "resumen": desc,
+                        "imagen_local": os.path.join(base_assets, "salud.jpg")
+                    }
+                    print(f"  ✅ [SALUD (Respaldo)]: {t[:50]}...")
+        except Exception:
+            pass
+
+    # ─────────────────────────────────────────────────────────────
+    # 2. INTERNACIONALES
+    # ─────────────────────────────────────────────────────────────
+    print("  🌐 Buscando noticia de INTERNACIONALES...")
+    try:
+        r = requests.get('https://rss.dw.com/xml/rss-sp-eco', headers=HEADERS, verify=False, timeout=7)
+        if r.status_code == 200:
+            s = BeautifulSoup(r.content, 'html.parser')
+            for it in s.find_all('item')[:6]:
+                t = limpiar_titular(it.find('title').text)
+                desc = extraer_desc_limpia(it)
+                if t and desc and not any(k in t.lower() for k in ['muert', 'guerra', 'homicid', 'atentado', 'choque']):
+                    if t.lower() not in titulares_vistos:
+                        titulares_vistos.add(t.lower())
+                        titulares_por_categoria["INTERNACIONALES"] = {
+                            "medio": "DW Español",
+                            "categoria": "INTERNACIONALES",
+                            "titular": t,
+                            "resumen": desc,
+                            "imagen_local": os.path.join(base_assets, "internacionales.jpg")
+                        }
+                        print(f"  ✅ [INTERNACIONALES]: {t[:50]}...")
+                        break
+    except Exception as e:
+        print(f"  ⚠️ Error en feed internacional DW: {e}")
+
+    # Respaldo BBC Mundo o Google News Internacional
+    if "INTERNACIONALES" not in titulares_por_categoria:
+        try:
+            r = requests.get('https://feeds.bbci.co.uk/mundo/temas/internacional/rss.xml', headers=HEADERS, timeout=7)
+            if r.status_code == 200:
+                s = BeautifulSoup(r.content, 'html.parser')
+                for it in s.find_all('item')[:6]:
+                    t = limpiar_titular(it.find('title').text)
+                    desc = extraer_desc_limpia(it)
+                    if t and desc and not any(k in t.lower() for k in ['muert', 'guerra', 'choque', 'asesin']):
+                        titulares_por_categoria["INTERNACIONALES"] = {
+                            "medio": "BBC Mundo",
+                            "categoria": "INTERNACIONALES",
+                            "titular": t,
+                            "resumen": desc,
+                            "imagen_local": os.path.join(base_assets, "internacionales.jpg")
+                        }
+                        print(f"  ✅ [INTERNACIONALES (BBC)]: {t[:50]}...")
+                        break
+        except Exception:
+            pass
+
+    # ─────────────────────────────────────────────────────────────
+    # 3. MARACAIBO / ZULIA
+    # ─────────────────────────────────────────────────────────────
+    print("  🌉 Buscando noticia de MARACAIBO / ZULIA...")
+    try:
+        r = requests.get('https://noticiaaldia.com/feed/', headers=HEADERS, verify=False, timeout=7)
+        if r.status_code == 200:
+            s = BeautifulSoup(r.content, 'html.parser')
+            for it in s.find_all('item')[:12]:
+                t = limpiar_titular(it.find('title').text)
+                desc = extraer_desc_limpia(it)
+                if any(k in (t + " " + desc).lower() for k in ['zulia', 'maracaibo', 'san francisco', 'cabimas', 'lago', 'puente']):
+                    if t.lower() not in titulares_vistos:
+                        titulares_vistos.add(t.lower())
+                        titulares_por_categoria["MARACAIBO"] = {
+                            "medio": "Noticia al Día",
+                            "categoria": "MARACAIBO",
+                            "titular": t,
+                            "resumen": desc or "Información destacada del acontecer regional en el Zulia.",
+                            "imagen_local": os.path.join(base_assets, "maracaibo.jpg")
+                        }
+                        print(f"  ✅ [MARACAIBO]: {t[:50]}...")
+                        break
+    except Exception as e:
+        print(f"  ⚠️ Error en feed Maracaibo: {e}")
+
+    # ─────────────────────────────────────────────────────────────
+    # 4. ECONOMÍA
+    # ─────────────────────────────────────────────────────────────
+    print("  📈 Buscando noticia de ECONOMÍA...")
+    try:
+        r = requests.get('https://www.finanzasdigital.com/feed/', headers=HEADERS, verify=False, timeout=7)
+        if r.status_code == 200:
+            s = BeautifulSoup(r.content, 'html.parser')
+            for it in s.find_all('item')[:6]:
+                t = limpiar_titular(it.find('title').text)
+                desc = extraer_desc_limpia(it)
+                if t and desc and t.lower() not in titulares_vistos:
+                    if es_titular_economico_o_social(t, es_feed_economico=True):
+                        titulares_vistos.add(t.lower())
+                        titulares_por_categoria["ECONOMÍA"] = {
+                            "medio": "Finanzas Digital",
+                            "categoria": "ECONOMÍA",
+                            "titular": t,
+                            "resumen": desc,
+                            "imagen_local": os.path.join(base_assets, "economia.jpg")
+                        }
+                        print(f"  ✅ [ECONOMÍA]: {t[:50]}...")
+                        break
+    except Exception as e:
+        print(f"  ⚠️ Error en feed Economía: {e}")
+
+    # ─────────────────────────────────────────────────────────────
+    # 5. VENEZUELA (Nacional)
+    # ─────────────────────────────────────────────────────────────
+    print("  🇻🇪 Buscando noticia de VENEZUELA...")
+    try:
+        r = requests.get('https://www.el-nacional.com/economia/feed/', headers=HEADERS, verify=False, timeout=7)
+        if r.status_code == 200:
+            s = BeautifulSoup(r.content, 'html.parser')
+            for it in s.find_all('item')[:6]:
+                t = limpiar_titular(it.find('title').text)
+                desc = extraer_desc_limpia(it)
+                if t and desc and t.lower() not in titulares_vistos:
+                    if es_titular_economico_o_social(t, es_feed_economico=True):
+                        titulares_vistos.add(t.lower())
+                        titulares_por_categoria["VENEZUELA"] = {
+                            "medio": "El Nacional",
+                            "categoria": "VENEZUELA",
+                            "titular": t,
+                            "resumen": desc,
+                            "imagen_local": os.path.join(base_assets, "venezuela.jpg")
+                        }
+                        print(f"  ✅ [VENEZUELA]: {t[:50]}...")
+                        break
+    except Exception as e:
+        print(f"  ⚠️ Error en feed Venezuela: {e}")
+
+    # Si alguna faltó, completar con respaldo de Banca y Negocios o El Pitazo
+    ORDEN_DESEADO = ["VENEZUELA", "ECONOMÍA", "MARACAIBO", "INTERNACIONALES", "SALUD"]
+    resultado_final = []
+    for cat in ORDEN_DESEADO:
+        if cat in titulares_por_categoria:
+            resultado_final.append(titulares_por_categoria[cat])
+
+    # Si por alguna razón falta alguna categoría, buscar en Banca y Negocios
+    if len(resultado_final) < objetivo:
+        print("  🔄 Completando noticias faltantes con Banca y Negocios...")
+        try:
+            r = requests.get('https://www.bancaynegocios.com/', headers=HEADERS, verify=False, timeout=7)
+            if r.status_code == 200:
+                s = BeautifulSoup(r.content, 'html.parser')
+                items = s.select('.post-title a, article h2 a, .entry-title a')
+                for it in items[:8]:
+                    t = limpiar_titular(it.text)
+                    link = it.get('href', '')
+                    if t and t.lower() not in titulares_vistos:
+                        titulares_vistos.add(t.lower())
+                        res = extraer_resumen_desde_url(link) if link else t
+                        cat, img = asignar_categoria_y_asset(t, "Banca y Negocios")
+                        resultado_final.append({
+                            "medio": "Banca y Negocios",
+                            "categoria": cat,
+                            "titular": t,
+                            "resumen": res or t,
+                            "imagen_local": img
+                        })
+                        if len(resultado_final) >= objetivo:
+                            break
+        except Exception:
+            pass
+
+    print(f"📰 [TITULARES] Total final: {len(resultado_final)} noticias completas y temáticamente coherentes.")
+    return resultado_final[:objetivo]
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import re
 from PIL import Image, ImageDraw, ImageFont
 import os
 import math
@@ -523,9 +524,9 @@ def crear_boletin_grafico_cuadrado(datos_bcv, datos_noticia, datos_db):
     f_rate_title   = carga("segoeuib.ttf",  14)
     f_rate_val     = carga("segoeuib.ttf",  25)
     f_news_t1      = carga("georgiab.ttf",  18)
-    f_news_r1      = carga("segoeui.ttf",   13)
+    f_news_r1      = carga("segoeuiz.ttf",  13)
     f_news_t2      = carga("georgiab.ttf",  15)
-    f_news_r2      = carga("segoeui.ttf",   12)
+    f_news_r2      = carga("segoeuiz.ttf",  12)
     f_frase_text   = carga("georgiaz.ttf",  22)
     f_frase_author = carga("segoeuib.ttf",  14)
     f_efem_date    = carga("georgiab.ttf",  19)
@@ -669,7 +670,7 @@ def crear_boletin_grafico_cuadrado(datos_bcv, datos_noticia, datos_db):
         r_lines = wrap_text(n.get("resumen", ""), f_news_r1, 290)
         ty += 6
         for line in r_lines[:3]:
-            draw.text((x0+218, ty), line, fill=(51,65,85,255), font=f_news_r1, anchor="lt")
+            draw.text((x0+218, ty), line, fill=(0,0,0,255), font=f_news_r1, anchor="lt")
             ty += 18
 
     # Fila 2: 3 noticias (Y: 494-745)
@@ -691,7 +692,7 @@ def crear_boletin_grafico_cuadrado(datos_bcv, datos_noticia, datos_db):
         r_lines = wrap_text(noti.get("resumen", ""), f_news_r2, tw_max)
         ty += 6
         for line in r_lines[:3]:
-            draw.text((tx_pos, ty), line, fill=(51,65,85,255), font=f_news_r2, anchor="lt")
+            draw.text((tx_pos, ty), line, fill=(0,0,0,255), font=f_news_r2, anchor="lt")
             ty += 16
 
     # ══════════════════════════════════════════════════════════════
@@ -725,9 +726,6 @@ def crear_boletin_grafico_cuadrado(datos_bcv, datos_noticia, datos_db):
     canvas.paste(grad_efem, (x_efem, y_bot))
     draw.rounded_rectangle([x_efem, y_bot, x_efem+w_bot, y_bot+h_bot], radius=8, outline=(203,213,225,255), width=1)
     dibujar_pestana_editorial(draw, x_efem, y_bot, 240, 32, "EFEM\u00c9RIDES DE VENEZUELA", f_tab_lg)
-    pegar_imagen_redondeada_ed(canvas, os.path.join(BASE_DIR,"assets","general","efemeride_bolivar.jpg"),
-                               [x_efem+12, y_bot+42, x_efem+155, y_bot+h_bot-12], radio=6)
-
     efem_raw = datos_db.get("efemeride_venezuela", "")
     if isinstance(efem_raw, dict):
         efem_raw = efem_raw.get("texto", "")
@@ -739,6 +737,33 @@ def crear_boletin_grafico_cuadrado(datos_bcv, datos_noticia, datos_db):
         explicacion = partes[0].strip() + ". " + partes[1].strip()
     explicacion = _re.sub(r'\s+', ' ', explicacion).strip()
 
+    # Selección de imagen de efeméride: si menciona a Bolívar retrato, si no el Escudo Nacional
+    efem_lower = explicacion.lower()
+    box_efem = [x_efem + 12, y_bot + 42, x_efem + 155, y_bot + h_bot - 12]
+    w_box_e = box_efem[2] - box_efem[0]
+    h_box_e = box_efem[3] - box_efem[1]
+
+    if any(k in efem_lower for k in ["bolívar", "bolivar", "libertador"]):
+        img_efem_path = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+        pegar_imagen_redondeada_ed(canvas, img_efem_path, box_efem, radio=6)
+    else:
+        # Símbolo Patrio: Escudo Nacional de Venezuela (escalado proporcionalmente con transparencia)
+        escudo_path = os.path.join(BASE_DIR, "assets", "general", "escudo_venezuela.png")
+        if os.path.exists(escudo_path):
+            try:
+                im_esc = Image.open(escudo_path).convert("RGBA")
+                im_esc.thumbnail((w_box_e - 6, h_box_e - 6), Image.Resampling.LANCZOS)
+                px_esc = box_efem[0] + (w_box_e - im_esc.width) // 2
+                py_esc = box_efem[1] + (h_box_e - im_esc.height) // 2
+                canvas.paste(im_esc, (px_esc, py_esc), im_esc)
+            except Exception as e_esc:
+                print("Error pegando Escudo:", e_esc)
+                img_efem_path = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+                pegar_imagen_redondeada_ed(canvas, img_efem_path, box_efem, radio=6)
+        else:
+            img_efem_path = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+            pegar_imagen_redondeada_ed(canvas, img_efem_path, box_efem, radio=6)
+
     fecha_efem_hdr = dia_num + " de " + mes_nombre.lower() + " de " + ano_efem
     tx_efem_txt = x_efem + 168
     tw_efem = w_bot - 180
@@ -746,7 +771,7 @@ def crear_boletin_grafico_cuadrado(datos_bcv, datos_noticia, datos_db):
     efem_lines = wrap_text(explicacion, f_efem_body, tw_efem)
     ty = y_bot + 78
     for line in efem_lines[:4]:
-        draw.text((tx_efem_txt, ty), line, fill=(51,65,85,255), font=f_efem_body, anchor="lt")
+        draw.text((tx_efem_txt, ty), line, fill=(15,23,42,255), font=f_efem_body, anchor="lt")
         ty += 22
 
     # ══════════════════════════════════════════════════════════════
@@ -981,3 +1006,544 @@ if __name__ == "__main__":
     crear_boletin_grafico(test_bcv, test_noticia, test_db)
     crear_boletin_grafico_cuadrado(test_bcv, test_noticia, test_db)
     crear_boletin_1200x1500(test_bcv, test_noticia, test_db)
+
+
+# Constantes compartidas para formatos editoriales
+BG_PAGE          = (248, 250, 252, 255)
+NAVY_DEEP        = (6,   24,  58,  255)
+NAVY_HEADER_TOP  = (8,   32,  75,  255)
+NAVY_HEADER_BOT  = (4,   18,  46,  255)
+GOLD_ACCENT      = (212, 175, 55,  255)
+GOLD_BORDER      = (225, 185, 75,  255)
+WHITE            = (255, 255, 255, 255)
+BORDER_CARD      = (203, 213, 225, 255)
+BORDER_LIGHT     = (226, 232, 240, 255)
+
+def crear_boletin_editorial_vertical_1080x1920(datos_bcv, noticias_5, pensamiento, efemeride, output_path):
+    """
+    Maqueta el boletín en formato VERTICAL COMPLETO 1080×1920 px (9:16).
+    Diseñado específicamente para verse a pantalla completa en smartphones sin barras negras,
+    con fuentes GRANDES y legibles a primera vista desde WhatsApp.
+    """
+    print("🎨 [BOLETÍN VERTICAL 1080×1920] Maquetando con diseño Editorial de Alta Legibilidad...")
+
+    W, H = 1080, 1920
+    canvas = Image.new("RGBA", (W, H), BG_PAGE)
+    draw = ImageDraw.Draw(canvas)
+
+    # ── TIPOGRAFÍAS MAXIMIZADAS PARA MÓVIL ──
+    f_header_title = cargar_fuente("georgiab.ttf",  54)
+    f_header_sub   = cargar_fuente("georgiai.ttf",  24)
+    f_date_day     = cargar_fuente("segoeui.ttf",   16)
+    f_date_num     = cargar_fuente("segoeuib.ttf",  48)
+    f_date_month   = cargar_fuente("segoeuib.ttf",  16)
+    f_date_year    = cargar_fuente("segoeuib.ttf",  14)
+
+    f_tab          = cargar_fuente("segoeuib.ttf",  16)
+    f_tab_lg       = cargar_fuente("segoeuib.ttf",  17)
+    f_rate_title   = cargar_fuente("segoeuib.ttf",  16)
+    f_rate_val     = cargar_fuente("segoeuib.ttf",  28)
+
+    # Noticias (fuentes mucho más grandes: 23pt y 17pt)
+    f_news_title   = cargar_fuente("georgiab.ttf",  23)
+    f_news_body    = cargar_fuente("segoeuiz.ttf",  17) # Bold Italic para legibilidad y elegancia
+    f_news_medio   = cargar_fuente("segoeuib.ttf",  14)
+
+    # Frase y Efemérides
+    f_frase_text   = cargar_fuente("georgiaz.ttf",  25)
+    f_frase_author = cargar_fuente("segoeuib.ttf",  18)
+    f_efem_date    = cargar_fuente("georgiab.ttf",  22)
+    f_efem_body    = cargar_fuente("segoeui.ttf",   18)
+
+    f_footer       = cargar_fuente("segoeuib.ttf",  15)
+
+    ahora = datetime.now()
+    dias_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    meses_es = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    dia_nombre = dias_es[ahora.weekday()]
+    dia_num    = str(ahora.day)
+    mes_nombre = meses_es[ahora.month - 1]
+    ano_str    = str(ahora.year)
+
+    # ══════════════════════════════════════════════════════════════
+    # 1. CABECERA EDITORIAL (Y: 0 a 175)
+    # ══════════════════════════════════════════════════════════════
+    HH = 175
+    header_grad = crear_degradado_vertical(W, HH, NAVY_HEADER_TOP, NAVY_HEADER_BOT)
+    canvas.paste(header_grad, (0, 0))
+    draw.line([(0, 1), (W, 1)], fill=GOLD_BORDER, width=3)
+    draw.line([(0, HH - 2), (W, HH - 2)], fill=GOLD_BORDER, width=4)
+
+    # Globo terráqueo
+    globe_path = os.path.join(BASE_DIR, "assets", "general", "globe.png")
+    if os.path.exists(globe_path):
+        try:
+            gim = Image.open(globe_path).convert("RGBA")
+            gim = gim.resize((160, 140), Image.Resampling.LANCZOS)
+            canvas.paste(gim, (18, 16), gim)
+        except Exception:
+            pass
+
+    # Títulos centrales
+    cx_hdr = W // 2 - 15
+    draw.text((cx_hdr, 58), "NOTICIAS DEL DÍA", fill=WHITE, font=f_header_title, anchor="mm")
+    draw.text((cx_hdr, 122), "La actualidad en una sola mirada", fill=(241, 245, 249, 255), font=f_header_sub, anchor="mm")
+
+    # Calendario a la derecha
+    bx1, by1, bx2, by2 = W - 145, 16, W - 18, HH - 16
+    draw.rounded_rectangle([bx1, by1, bx2, by2], radius=10, fill=WHITE, outline=BORDER_CARD, width=1)
+    cx_b = (bx1 + bx2) // 2
+    draw.text((cx_b, by1 + 22), dia_nombre, fill=(51, 65, 85, 255), font=f_date_day, anchor="mm")
+    draw.text((cx_b, by1 + 62), dia_num, fill=NAVY_DEEP, font=f_date_num, anchor="mm")
+    draw.text((cx_b, by1 + 104), mes_nombre, fill=(15, 23, 42, 255), font=f_date_month, anchor="mm")
+    draw.text((cx_b, by1 + 125), ano_str, fill=(71, 85, 105, 255), font=f_date_year, anchor="mm")
+
+    # ══════════════════════════════════════════════════════════════
+    # 2. FRANJA DE COTIZACIONES EN TIEMPO REAL (Y: 190 a 290)
+    # ══════════════════════════════════════════════════════════════
+    y_cot, h_cot = 190, 100
+    draw.rectangle([0, y_cot, W, y_cot + h_cot], fill=WHITE, outline=BORDER_LIGHT, width=1)
+
+    # Pestaña "COTIZACIONES DEL DÍA"
+    w_tab_cot, corte_cot = 195, 16
+    pts_cot = [(0, y_cot), (w_tab_cot, y_cot), (w_tab_cot - corte_cot, y_cot + h_cot), (0, y_cot + h_cot)]
+    draw.polygon(pts_cot, fill=NAVY_DEEP)
+    draw.line([(w_tab_cot, y_cot), (w_tab_cot - corte_cot, y_cot + h_cot)], fill=GOLD_ACCENT, width=4)
+    draw.text((18, y_cot + 32), "COTIZACIONES", fill=WHITE, font=f_tab_lg, anchor="lm")
+    draw.text((18, y_cot + 65), "DEL DÍA", fill=WHITE, font=f_tab_lg, anchor="lm")
+
+    # Bloques de divisas con iconos 50x50 y valores grandes
+    icon_usd = os.path.join(BASE_DIR, "assets", "icons", "usd.png")
+    icon_eur = os.path.join(BASE_DIR, "assets", "icons", "eur.png")
+    icon_bin = os.path.join(BASE_DIR, "assets", "icons", "binance.png")
+
+    usd_val = str(datos_bcv.get("usd", "888,89")) + " Bs"
+    eur_val = str(datos_bcv.get("eur", "989,39")) + " Bs"
+    bin_val = str(datos_bcv.get("binance", "1005,00")) + " Bs"
+
+    div_blocks = [
+        {"x": 230, "icon": icon_usd, "title": "DÓLAR BCV",   "val": usd_val},
+        {"x": 515, "icon": icon_eur, "title": "EURO BCV",    "val": eur_val},
+        {"x": 800, "icon": icon_bin, "title": "BINANCE P2P", "val": bin_val}
+    ]
+
+    for blk in div_blocks:
+        xs = blk["x"]
+        if os.path.exists(blk["icon"]):
+            try:
+                ico = Image.open(blk["icon"]).convert("RGBA")
+                ico = ico.resize((50, 50), Image.Resampling.LANCZOS)
+                canvas.paste(ico, (xs, y_cot + 25), ico)
+            except Exception:
+                pass
+        tx = xs + 62
+        draw.text((tx, y_cot + 36), blk["title"], fill=(15, 23, 42, 255), font=f_rate_title, anchor="lm")
+        draw.text((tx, y_cot + 68), blk["val"],   fill=NAVY_DEEP, font=f_rate_val, anchor="lm")
+
+    # ══════════════════════════════════════════════════════════════
+    # 3. SECCIÓN DE 5 NOTICIAS APILADAS EN ANCHO COMPLETO (Y: 308 a 1358)
+    #    Cada tarjeta tiene 1056 px de ancho, con foto a la izq y texto ancho a la der.
+    #    ¡Legibilidad absoluta a primera vista!
+    # ══════════════════════════════════════════════════════════════
+    y_news_start = 308
+    card_h = 198
+    card_gap = 12
+    card_w = W - 24 # 1056 px
+
+    for idx, noti in enumerate(noticias_5[:5]):
+        ny = y_news_start + idx * (card_h + card_gap)
+        # Fondo tarjeta blanco
+        draw.rounded_rectangle([12, ny, 12 + card_w, ny + card_h], radius=10, fill=WHITE, outline=BORDER_CARD, width=1)
+
+        # Pestaña de categoría
+        cat_txt = noti.get("categoria", "VENEZUELA")
+        dibujar_pestana_editorial(draw, 12, ny, 175, 30, cat_txt, f_tab)
+
+        # Medio de comunicación a la derecha de la pestaña
+        medio_txt = noti.get("medio", "")
+        if medio_txt:
+            draw.text((12 + card_w - 18, ny + 16), medio_txt, fill=(100, 116, 139, 255), font=f_news_medio, anchor="rm")
+
+        # Foto redondeada grande (240x152) a la izquierda
+        img_path = noti.get("imagen_local")
+        box_img = [24, ny + 38, 264, ny + card_h - 10]
+        pegar_imagen_redondeada_ed(canvas, img_path, box_img, radio=8)
+
+        # Contenido textual amplio a la derecha (x: 280 a 1040 -> 760 px de ancho)
+        tx_news = 282
+        tw_news = card_w - 290 # ~766 px
+
+        titular = noti.get("titular", "")
+        t_lines = wrap_text(titular, f_news_title, tw_news)
+        ty = ny + 40
+        for line in t_lines[:2]: # Máximo 2 líneas de titular grande
+            draw.text((tx_news, ty), line, fill=(15, 23, 42, 255), font=f_news_title, anchor="lt")
+            ty += 28
+
+        # Resumen en negrita itálica color negro
+        resumen = noti.get("resumen", "")
+        r_lines = wrap_text(resumen, f_news_body, tw_news)
+        ty += 6
+        for line in r_lines[:3]: # Máximo 3 líneas de resumen
+            draw.text((tx_news, ty), line, fill=(0, 0, 0, 255), font=f_news_body, anchor="lt")
+            ty += 22
+
+    # ══════════════════════════════════════════════════════════════
+    # 4. FRANJA INFERIOR: FRASE UNIVERSAL + EFEMÉRIDES (Y: 1378 a 1838, alto 460 px)
+    # ══════════════════════════════════════════════════════════════
+    y_bot = 1378
+    h_bot = 460
+    w_bot = (W - 36) // 2 # 522 px cada bloque
+
+    # Bloque Izquierdo: LA FRASE UNIVERSAL
+    grad_frase = crear_degradado_vertical(w_bot, h_bot, (255, 253, 247, 255), (254, 247, 234, 255))
+    canvas.paste(grad_frase, (12, y_bot))
+    draw.rounded_rectangle([12, y_bot, 12 + w_bot, y_bot + h_bot], radius=10, outline=BORDER_CARD, width=1)
+    dibujar_pestana_editorial(draw, 12, y_bot, 240, 34, "LA FRASE UNIVERSAL", f_tab_lg)
+
+    # Foto del viajero en buen tamaño (180x380 px)
+    img_viajero = os.path.join(BASE_DIR, "assets", "general", "frase_viajero.jpg")
+    pegar_imagen_redondeada_ed(canvas, img_viajero, [24, y_bot + 46, 184, y_bot + h_bot - 16], radio=8)
+
+    # Frase célebre
+    pensa = pensamiento if isinstance(pensamiento, dict) else {}
+    f_txt = pensa.get("texto", "La vida es un viaje, no un destino.")
+    f_aut = pensa.get("autor", "Anónimo")
+    frase_q = f'"{f_txt}"'
+    tx_frase = 200
+    tw_frase = w_bot - 215
+
+    frase_lines = wrap_text(frase_q, f_frase_text, tw_frase)
+    total_fh = len(frase_lines[:6]) * 34 + 36
+    ty_frase = y_bot + 46 + max((h_bot - 60 - total_fh) // 2, 0)
+    for line in frase_lines[:6]:
+        draw.text((tx_frase, ty_frase), line, fill=(15, 23, 42, 255), font=f_frase_text, anchor="lt")
+        ty_frase += 34
+    if f_aut and f_aut.lower() not in ("anónimo", "anonimo"):
+        draw.text((tx_frase, ty_frase + 10), f"— {f_aut}", fill=NAVY_DEEP, font=f_frase_author, anchor="lt")
+
+    # Bloque Derecho: EFEMÉRIDES DE VENEZUELA
+    x_efem = 12 + w_bot + 12
+    grad_efem = crear_degradado_vertical(w_bot, h_bot, (255, 253, 247, 255), (254, 247, 234, 255))
+    canvas.paste(grad_efem, (x_efem, y_bot))
+    draw.rounded_rectangle([x_efem, y_bot, x_efem + w_bot, y_bot + h_bot], radius=10, outline=BORDER_CARD, width=1)
+    dibujar_pestana_editorial(draw, x_efem, y_bot, 260, 34, "EFEMÉRIDES DE VENEZUELA", f_tab_lg)
+
+    # Formatear texto efeméride
+    efem_raw = efemeride if isinstance(efemeride, str) else efemeride.get("texto", "")
+    match_ano = re.search(r'\((\d{4})\)', efem_raw)
+    ano_efem  = match_ano.group(1) if match_ano else ano_str
+    explicacion = re.sub(r'\(\d{4}\)', '', efem_raw)
+    if "|" in explicacion:
+        partes = explicacion.split("|", 1)
+        explicacion = partes[0].strip() + ". " + partes[1].strip()
+    explicacion = re.sub(r'\s+', ' ', explicacion).strip()
+
+    # Selección de imagen: Bolívar si lo menciona, de lo contrario Escudo Nacional
+    efem_lower = explicacion.lower()
+    box_efem = [x_efem + 16, y_bot + 46, x_efem + 186, y_bot + h_bot - 16]
+    w_box_e = box_efem[2] - box_efem[0]
+    h_box_e = box_efem[3] - box_efem[1]
+
+    if any(k in efem_lower for k in ["bolívar", "bolivar", "libertador"]):
+        img_bolivar = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+        pegar_imagen_redondeada_ed(canvas, img_bolivar, box_efem, radio=8)
+    else:
+        escudo_path = os.path.join(BASE_DIR, "assets", "general", "escudo_venezuela.png")
+        if os.path.exists(escudo_path):
+            try:
+                im_esc = Image.open(escudo_path).convert("RGBA")
+                im_esc.thumbnail((w_box_e - 6, h_box_e - 6), Image.Resampling.LANCZOS)
+                px_esc = box_efem[0] + (w_box_e - im_esc.width) // 2
+                py_esc = box_efem[1] + (h_box_e - im_esc.height) // 2
+                canvas.paste(im_esc, (px_esc, py_esc), im_esc)
+            except Exception as e_esc:
+                print("Error pegando Escudo:", e_esc)
+
+    # Texto de efemérides amplio
+    fecha_efem_hdr = f"{dia_num} de {mes_nombre.lower()} de {ano_efem}"
+    tx_efem_txt = x_efem + 198
+    tw_efem = w_bot - 212
+
+    draw.text((tx_efem_txt, y_bot + 52), fecha_efem_hdr, fill=(15, 23, 42, 255), font=f_efem_date, anchor="lt")
+    efem_lines = wrap_text(explicacion, f_efem_body, tw_efem)
+    ty_efem = y_bot + 92
+    for line in efem_lines[:8]: # Hasta 8 líneas legibles
+        draw.text((tx_efem_txt, ty_efem), line, fill=(15, 23, 42, 255), font=f_efem_body, anchor="lt")
+        ty_efem += 26
+
+    # ══════════════════════════════════════════════════════════════
+    # 5. PIE EDITORIAL (Y: 1850 a 1920)
+    # ══════════════════════════════════════════════════════════════
+    y_foot = 1850
+    draw.rectangle([0, y_foot, W, H], fill=NAVY_DEEP)
+    draw.line([(0, y_foot), (W, y_foot)], fill=GOLD_BORDER, width=2)
+    foot_text = "Fuentes: Medios Nacionales | Generado Automáticamente · © Ing. LF"
+    bbox_ft = f_footer.getbbox(foot_text)
+    ft_w = bbox_ft[2] - bbox_ft[0]
+    cx_ft = W // 2
+    draw.line([(60, y_foot + 35), (cx_ft - (ft_w // 2) - 20, y_foot + 35)], fill=GOLD_BORDER, width=2)
+    draw.line([(cx_ft + (ft_w // 2) + 20, y_foot + 35), (W - 60, y_foot + 35)], fill=GOLD_BORDER, width=2)
+    draw.text((cx_ft, y_foot + 35), foot_text, fill=(241, 245, 249, 255), font=f_footer, anchor="mm")
+
+    # Guardar imagen optimizada
+    canvas.save(output_path, "PNG", optimize=True)
+    print(f"🎉 ¡Boletín Vertical 1080×1920 guardado exitosamente en: {output_path}!")
+    return output_path
+
+def crear_boletin_editorial_feed_1080x1350(datos_bcv, noticias_5, pensamiento, efemeride, output_path):
+    """
+    Maqueta el boletín en formato VERTICAL FEED 1080×1350 px (4:5).
+    270 píxeles más alto que el cuadrado, con tipografías más amplias y proporciones balanceadas.
+    """
+    print("🎨 [BOLETÍN FEED 1080×1350] Maquetando versión 4:5...")
+
+    W, H = 1080, 1350
+    canvas = Image.new("RGBA", (W, H), BG_PAGE)
+    draw = ImageDraw.Draw(canvas)
+
+    f_header_title = cargar_fuente("georgiab.ttf",  54)
+    f_header_sub   = cargar_fuente("georgiai.ttf",  22)
+    f_date_day     = cargar_fuente("segoeui.ttf",   15)
+    f_date_num     = cargar_fuente("segoeuib.ttf",  46)
+    f_date_month   = cargar_fuente("segoeuib.ttf",  15)
+    f_date_year    = cargar_fuente("segoeuib.ttf",  13)
+
+    f_tab          = cargar_fuente("segoeuib.ttf",  15)
+    f_tab_lg       = cargar_fuente("segoeuib.ttf",  16)
+    f_rate_title   = cargar_fuente("segoeuib.ttf",  15)
+    f_rate_val     = cargar_fuente("segoeuib.ttf",  26)
+
+    # Noticias fila 1 (grandes)
+    f_news_t1      = cargar_fuente("georgiab.ttf",  19)
+    f_news_r1      = cargar_fuente("segoeuiz.ttf",  14) # Bold Italic más grande
+    # Noticias fila 2
+    f_news_t2      = cargar_fuente("georgiab.ttf",  16)
+    f_news_r2      = cargar_fuente("segoeuiz.ttf",  13)
+
+    # Frase & Efemérides
+    f_frase_text   = cargar_fuente("georgiaz.ttf",  23)
+    f_frase_author = cargar_fuente("segoeuib.ttf",  15)
+    f_efem_date    = cargar_fuente("georgiab.ttf",  20)
+    f_efem_body    = cargar_fuente("segoeui.ttf",   15)
+
+    f_footer       = cargar_fuente("segoeuib.ttf",  14)
+
+    ahora = datetime.now()
+    dias_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    meses_es = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    dia_nombre = dias_es[ahora.weekday()]
+    dia_num    = str(ahora.day)
+    mes_nombre = meses_es[ahora.month - 1]
+    ano_str    = str(ahora.year)
+
+    # 1. Cabecera (Y: 0 a 150)
+    HH = 150
+    header_grad = crear_degradado_vertical(W, HH, NAVY_HEADER_TOP, NAVY_HEADER_BOT)
+    canvas.paste(header_grad, (0, 0))
+    draw.line([(0, 1), (W, 1)], fill=GOLD_BORDER, width=2)
+    draw.line([(0, HH - 2), (W, HH - 2)], fill=GOLD_BORDER, width=3)
+
+    globe_path = os.path.join(BASE_DIR, "assets", "general", "globe.png")
+    if os.path.exists(globe_path):
+        try:
+            gim = Image.open(globe_path).convert("RGBA")
+            gim = gim.resize((150, 125), Image.Resampling.LANCZOS)
+            canvas.paste(gim, (16, 12), gim)
+        except Exception:
+            pass
+
+    cx_hdr = W // 2 - 15
+    draw.text((cx_hdr, 50), "NOTICIAS DEL DÍA", fill=WHITE, font=f_header_title, anchor="mm")
+    draw.text((cx_hdr, 108), "La actualidad en una sola mirada", fill=(241, 245, 249, 255), font=f_header_sub, anchor="mm")
+
+    bx1, by1, bx2, by2 = W - 142, 14, W - 18, HH - 14
+    draw.rounded_rectangle([bx1, by1, bx2, by2], radius=8, fill=WHITE, outline=BORDER_CARD, width=1)
+    cx_b = (bx1 + bx2) // 2
+    draw.text((cx_b, by1 + 18), dia_nombre, fill=(51, 65, 85, 255), font=f_date_day, anchor="mm")
+    draw.text((cx_b, by1 + 54), dia_num, fill=NAVY_DEEP, font=f_date_num, anchor="mm")
+    draw.text((cx_b, by1 + 90), mes_nombre, fill=(15, 23, 42, 255), font=f_date_month, anchor="mm")
+    draw.text((cx_b, by1 + 109), ano_str, fill=(71, 85, 105, 255), font=f_date_year, anchor="mm")
+
+    # 2. Cotizaciones (Y: 162 a 252)
+    y_cot, h_cot = 162, 90
+    draw.rectangle([0, y_cot, W, y_cot + h_cot], fill=WHITE, outline=BORDER_LIGHT, width=1)
+
+    w_tab_cot, corte_cot = 185, 15
+    pts_cot = [(0, y_cot), (w_tab_cot, y_cot), (w_tab_cot - corte_cot, y_cot + h_cot), (0, y_cot + h_cot)]
+    draw.polygon(pts_cot, fill=NAVY_DEEP)
+    draw.line([(w_tab_cot, y_cot), (w_tab_cot - corte_cot, y_cot + h_cot)], fill=GOLD_ACCENT, width=4)
+    draw.text((18, y_cot + 28), "COTIZACIONES", fill=WHITE, font=f_tab_lg, anchor="lm")
+    draw.text((18, y_cot + 58), "DEL DÍA", fill=WHITE, font=f_tab_lg, anchor="lm")
+
+    icon_usd = os.path.join(BASE_DIR, "assets", "icons", "usd.png")
+    icon_eur = os.path.join(BASE_DIR, "assets", "icons", "eur.png")
+    icon_bin = os.path.join(BASE_DIR, "assets", "icons", "binance.png")
+
+    usd_val = str(datos_bcv.get("usd", "888,89")) + " Bs"
+    eur_val = str(datos_bcv.get("eur", "989,39")) + " Bs"
+    bin_val = str(datos_bcv.get("binance", "1005,20")) + " Bs"
+
+    div_blocks = [
+        {"x": 225, "icon": icon_usd, "title": "DÓLAR BCV",   "val": usd_val},
+        {"x": 510, "icon": icon_eur, "title": "EURO BCV",    "val": eur_val},
+        {"x": 785, "icon": icon_bin, "title": "BINANCE P2P", "val": bin_val}
+    ]
+
+    for blk in div_blocks:
+        xs = blk["x"]
+        if os.path.exists(blk["icon"]):
+            try:
+                ico = Image.open(blk["icon"]).convert("RGBA")
+                ico = ico.resize((46, 46), Image.Resampling.LANCZOS)
+                canvas.paste(ico, (xs, y_cot + 22), ico)
+            except Exception:
+                pass
+        tx = xs + 56
+        draw.text((tx, y_cot + 32), blk["title"], fill=(15, 23, 42, 255), font=f_rate_title, anchor="lm")
+        draw.text((tx, y_cot + 60), blk["val"],   fill=NAVY_DEEP, font=f_rate_val, anchor="lm")
+
+    # 3. Sección de Noticias (Y: 265 a 935)
+    # Fila 1: 2 noticias principales (Y: 265 a 575, Alto: 310 px) -> Mucho más altas y legibles!
+    y_r1 = 265
+    h_r1 = 310
+    w_r1 = 522
+
+    for col_idx in range(2):
+        n = noticias_5[col_idx] if col_idx < len(noticias_5) else {}
+        x0 = 12 + col_idx * (w_r1 + 12)
+        draw.rounded_rectangle([x0, y_r1, x0 + w_r1, y_r1 + h_r1], radius=8, fill=WHITE, outline=BORDER_CARD, width=1)
+        dibujar_pestana_editorial(draw, x0, y_r1, 160, 32, n.get("categoria", ""), f_tab)
+        
+        # Imagen grande
+        img_n = n.get("imagen_local")
+        pegar_imagen_redondeada_ed(canvas, img_n, [x0 + 12, y_r1 + 42, x0 + 215, y_r1 + h_r1 - 12], radio=6)
+
+        # Texto a la derecha
+        t_lines = wrap_text(n.get("titular", ""), f_news_t1, 285)
+        ty = y_r1 + 46
+        for line in t_lines[:3]:
+            draw.text((x0 + 225, ty), line, fill=(15, 23, 42, 255), font=f_news_t1, anchor="lt")
+            ty += 25
+        r_lines = wrap_text(n.get("resumen", ""), f_news_r1, 285)
+        ty += 8
+        for line in r_lines[:4]:
+            draw.text((x0 + 225, ty), line, fill=(0, 0, 0, 255), font=f_news_r1, anchor="lt")
+            ty += 20
+
+    # Fila 2: 3 noticias secundarias (Y: 588 a 938, Alto: 350 px)
+    y_r2 = 588
+    h_r2 = 350
+    w_r2 = 344
+    gap_r2 = 12
+
+    for idx, noti in enumerate(noticias_5[2:5]):
+        nx = 12 + idx * (w_r2 + gap_r2)
+        draw.rounded_rectangle([nx, y_r2, nx + w_r2, y_r2 + h_r2], radius=8, fill=WHITE, outline=BORDER_CARD, width=1)
+        dibujar_pestana_editorial(draw, nx, y_r2, 155, 30, noti.get("categoria", ""), f_tab)
+
+        img_n2 = noti.get("imagen_local")
+        pegar_imagen_redondeada_ed(canvas, img_n2, [nx + 10, y_r2 + 38, nx + 130, y_r2 + 195], radio=6)
+
+        tx_pos = nx + 138
+        tw_max = w_r2 - 146
+        t_lines = wrap_text(noti.get("titular", ""), f_news_t2, tw_max)
+        ty = y_r2 + 42
+        for line in t_lines[:4]:
+            draw.text((tx_pos, ty), line, fill=(15, 23, 42, 255), font=f_news_t2, anchor="lt")
+            ty += 21
+
+        # Resumen en bloque inferior amplio a todo lo ancho de la tarjeta
+        r_lines = wrap_text(noti.get("resumen", ""), f_news_r2, w_r2 - 20)
+        ty_r = y_r2 + 205
+        for line in r_lines[:4]:
+            draw.text((nx + 10, ty_r), line, fill=(0, 0, 0, 255), font=f_news_r2, anchor="lt")
+            ty_r += 18
+
+    # 4. Franja Inferior: Frase & Efemérides (Y: 950 a 1290, Alto: 340 px)
+    y_bot = 950
+    h_bot = 340
+    w_bot = 522
+
+    # Frase Universal
+    grad_frase = crear_degradado_vertical(w_bot, h_bot, (255, 253, 247, 255), (254, 247, 234, 255))
+    canvas.paste(grad_frase, (12, y_bot))
+    draw.rounded_rectangle([12, y_bot, 12 + w_bot, y_bot + h_bot], radius=8, outline=BORDER_CARD, width=1)
+    dibujar_pestana_editorial(draw, 12, y_bot, 220, 32, "LA FRASE UNIVERSAL", f_tab_lg)
+    img_viajero = os.path.join(BASE_DIR, "assets", "general", "frase_viajero.jpg")
+    pegar_imagen_redondeada_ed(canvas, img_viajero, [24, y_bot + 44, 180, y_bot + h_bot - 14], radio=6)
+
+    pensa = pensamiento if isinstance(pensamiento, dict) else {}
+    f_txt = pensa.get("texto", "La vida es un viaje, no un destino.")
+    f_aut = pensa.get("autor", "Anónimo")
+    frase_q = f'"{f_txt}"'
+    frase_lines = wrap_text(frase_q, f_frase_text, 310)
+    ty_f = y_bot + 52
+    for line in frase_lines[:5]:
+        draw.text((195, ty_f), line, fill=(15, 23, 42, 255), font=f_frase_text, anchor="lt")
+        ty_f += 32
+    if f_aut and f_aut.lower() not in ("anónimo", "anonimo"):
+        draw.text((195, ty_f + 8), f"— {f_aut}", fill=NAVY_DEEP, font=f_frase_author, anchor="lt")
+
+    # Efemérides
+    x_efem = 12 + w_bot + 12
+    grad_efem = crear_degradado_vertical(w_bot, h_bot, (255, 253, 247, 255), (254, 247, 234, 255))
+    canvas.paste(grad_efem, (x_efem, y_bot))
+    draw.rounded_rectangle([x_efem, y_bot, x_efem + w_bot, y_bot + h_bot], radius=8, outline=BORDER_CARD, width=1)
+    dibujar_pestana_editorial(draw, x_efem, y_bot, 245, 32, "EFEMÉRIDES DE VENEZUELA", f_tab_lg)
+
+    efem_raw = efemeride if isinstance(efemeride, str) else efemeride.get("texto", "")
+    match_ano = re.search(r'\((\d{4})\)', efem_raw)
+    ano_efem  = match_ano.group(1) if match_ano else ano_str
+    explicacion = re.sub(r'\(\d{4}\)', '', efem_raw)
+    if "|" in explicacion:
+        partes = explicacion.split("|", 1)
+        explicacion = partes[0].strip() + ". " + partes[1].strip()
+    explicacion = re.sub(r'\s+', ' ', explicacion).strip()
+
+    box_efem = [x_efem + 12, y_bot + 44, x_efem + 165, y_bot + h_bot - 14]
+    w_box_e = box_efem[2] - box_efem[0]
+    h_box_e = box_efem[3] - box_efem[1]
+
+    if any(k in explicacion.lower() for k in ["bolívar", "bolivar", "libertador"]):
+        img_bolivar = os.path.join(BASE_DIR, "assets", "general", "efemeride_bolivar.jpg")
+        pegar_imagen_redondeada_ed(canvas, img_bolivar, box_efem, radio=6)
+    else:
+        escudo_path = os.path.join(BASE_DIR, "assets", "general", "escudo_venezuela.png")
+        if os.path.exists(escudo_path):
+            try:
+                im_esc = Image.open(escudo_path).convert("RGBA")
+                im_esc.thumbnail((w_box_e - 6, h_box_e - 6), Image.Resampling.LANCZOS)
+                px_esc = box_efem[0] + (w_box_e - im_esc.width) // 2
+                py_esc = box_efem[1] + (h_box_e - im_esc.height) // 2
+                canvas.paste(im_esc, (px_esc, py_esc), im_esc)
+            except Exception as e_esc:
+                print("Error pegando Escudo:", e_esc)
+
+    fecha_efem_hdr = f"{dia_num} de {mes_nombre.lower()} de {ano_efem}"
+    tx_efem_txt = x_efem + 178
+    tw_efem = w_bot - 190
+    draw.text((tx_efem_txt, y_bot + 48), fecha_efem_hdr, fill=(15, 23, 42, 255), font=f_efem_date, anchor="lt")
+    efem_lines = wrap_text(explicacion, f_efem_body, tw_efem)
+    ty_e = y_bot + 84
+    for line in efem_lines[:6]:
+        draw.text((tx_efem_txt, ty_e), line, fill=(15, 23, 42, 255), font=f_efem_body, anchor="lt")
+        ty_e += 24
+
+    # 5. Pie editorial (Y: 1300 a 1350)
+    y_foot = 1300
+    draw.rectangle([0, y_foot, W, H], fill=NAVY_DEEP)
+    draw.line([(0, y_foot), (W, y_foot)], fill=GOLD_BORDER, width=2)
+    foot_text = "Fuentes: Medios Nacionales | Generado Automáticamente · © Ing. LF"
+    bbox_ft = f_footer.getbbox(foot_text)
+    ft_w = bbox_ft[2] - bbox_ft[0]
+    cx_ft = W // 2
+    draw.line([(70, y_foot + 25), (cx_ft - (ft_w // 2) - 20, y_foot + 25)], fill=GOLD_BORDER, width=2)
+    draw.line([(cx_ft + (ft_w // 2) + 20, y_foot + 25), (W - 70, y_foot + 25)], fill=GOLD_BORDER, width=2)
+    draw.text((cx_ft, y_foot + 25), foot_text, fill=(241, 245, 249, 255), font=f_footer, anchor="mm")
+
+    canvas.save(output_path, "PNG", optimize=True)
+    print(f"🎉 ¡Boletín Feed 1080×1350 guardado en: {output_path}!")
+    return output_path
