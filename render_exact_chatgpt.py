@@ -23,6 +23,7 @@ BORDER_CARD     = (203, 213, 225, 255) # Slate 300 suave
 BORDER_LIGHT    = (226, 232, 240, 255) # Slate 200
 TEXT_TITLE      = (5,   11,  20,  255) # Negro editorial profundo (#050B14)
 TEXT_BODY       = (30,  41,  59,  255) # Slate 800 (#1E293B)
+TEXT_BLUE_NEWS  = (25,  105, 215, 255) # Azul real vibrante exacto de la referencia del usuario (#1969D7)
 WARM_BG_START   = (255, 252, 240, 255) # Crema pergamino luminoso
 WARM_BG_END     = (254, 243, 218, 255) # Ámbar dorado suave
 WARM_BORDER     = (226, 203, 150, 255) # Borde dorado fino tarjetas inferiores
@@ -149,15 +150,17 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
         f_rate_title   = cargar_fuente_editorial("segoeuib.ttf", 14)
         f_rate_val     = cargar_fuente_editorial("Oswald-Bold.ttf", 25)
 
+        # Títulos: Georgia Bold (serif elegante de periódico)
+        # Resúmenes: Segoe UI Bold Italic en azul corporativo (como la imagen de referencia)
         f_news_t1      = cargar_fuente_editorial("Oswald-Bold.ttf", 21)
-        f_news_r1      = cargar_fuente_editorial("segoeui.ttf", 13)
-        f_news_t2      = cargar_fuente_editorial("Oswald-Bold.ttf", 17)
-        f_news_r2      = cargar_fuente_editorial("segoeui.ttf", 12)
+        f_news_r1      = cargar_fuente_editorial("segoeuib.ttf", 13.5)
+        f_news_t2      = cargar_fuente_editorial("Oswald-Bold.ttf", 17.5)
+        f_news_r2      = cargar_fuente_editorial("segoeuib.ttf", 12.5)
 
         f_frase_text   = cargar_fuente_editorial("georgiaz.ttf", 22)
         f_frase_author = cargar_fuente_editorial("segoeuib.ttf", 14)
         f_efem_date    = cargar_fuente_editorial("georgiab.ttf", 19)
-        f_efem_body    = cargar_fuente_editorial("segoeui.ttf", 13.5)
+        f_efem_body    = cargar_fuente_editorial("segoeuib.ttf", 13.5)
         f_footer       = cargar_fuente_editorial("segoeuib.ttf", 13)
 
         h_header = 145
@@ -182,14 +185,14 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
         f_rate_val     = cargar_fuente_editorial("Oswald-Bold.ttf", 26)
 
         f_news_t1      = cargar_fuente_editorial("Oswald-Bold.ttf", 23)
-        f_news_r1      = cargar_fuente_editorial("segoeui.ttf", 13.5)
-        f_news_t2      = cargar_fuente_editorial("Oswald-Bold.ttf", 18)
-        f_news_r2      = cargar_fuente_editorial("segoeui.ttf", 12.5)
+        f_news_r1      = cargar_fuente_editorial("segoeuib.ttf", 14)
+        f_news_t2      = cargar_fuente_editorial("Oswald-Bold.ttf", 18.5)
+        f_news_r2      = cargar_fuente_editorial("segoeuib.ttf", 13)
 
         f_frase_text   = cargar_fuente_editorial("georgiaz.ttf", 24)
         f_frase_author = cargar_fuente_editorial("segoeuib.ttf", 15)
         f_efem_date    = cargar_fuente_editorial("georgiab.ttf", 21)
-        f_efem_body    = cargar_fuente_editorial("segoeui.ttf", 14)
+        f_efem_body    = cargar_fuente_editorial("segoeuib.ttf", 14)
         f_footer       = cargar_fuente_editorial("segoeuib.ttf", 14)
 
         h_header = 155
@@ -214,14 +217,14 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
         f_rate_val     = cargar_fuente_editorial("Oswald-Bold.ttf", 30)
 
         f_news_t1      = cargar_fuente_editorial("Oswald-Bold.ttf", 27)
-        f_news_r1      = cargar_fuente_editorial("segoeui.ttf", 16)
+        f_news_r1      = cargar_fuente_editorial("segoeuib.ttf", 16.5)
         f_news_t2      = cargar_fuente_editorial("Oswald-Bold.ttf", 21)
-        f_news_r2      = cargar_fuente_editorial("segoeui.ttf", 14.5)
+        f_news_r2      = cargar_fuente_editorial("segoeuib.ttf", 15)
 
         f_frase_text   = cargar_fuente_editorial("georgiaz.ttf", 30)
         f_frase_author = cargar_fuente_editorial("segoeuib.ttf", 18)
         f_efem_date    = cargar_fuente_editorial("georgiab.ttf", 25)
-        f_efem_body    = cargar_fuente_editorial("segoeui.ttf", 17)
+        f_efem_body    = cargar_fuente_editorial("segoeuib.ttf", 17)
         f_footer       = cargar_fuente_editorial("segoeuib.ttf", 16)
 
         h_header = 180
@@ -359,7 +362,7 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
         ty += (8 if not es_1920 else 12)
         for line in r_lines[:3]:
             if ty + lh_r1 <= y_r1 + h_r1 - 8:
-                draw.text((tx, ty), line, fill=TEXT_BODY, font=f_news_r1, anchor="lt")
+                draw.text((tx, ty), line, fill=TEXT_BLUE_NEWS, font=f_news_r1, anchor="lt")
                 ty += lh_r1
 
     # Fila 2: 3 Noticias Medianas
@@ -395,7 +398,7 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
         ty2 += (6 if not es_1920 else 10)
         for line in r_lines2[:3]:
             if ty2 + lh_r2 <= y_r2 + h_r2 - 6:
-                draw.text((tx2, ty2), line, fill=TEXT_BODY, font=f_news_r2, anchor="lt")
+                draw.text((tx2, ty2), line, fill=TEXT_BLUE_NEWS, font=f_news_r2, anchor="lt")
                 ty2 += lh_r2
 
     # --- D. FRANJA INFERIOR CÁLIDA ---
@@ -492,7 +495,7 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
     lh_e = 24 if es_1920 else (20 if es_1350 else 18)
     for line in e_lines[:6 if es_1920 else 4]:
         if ty_e + lh_e <= y_bot + h_bot - 8:
-            draw.text((tx_e, ty_e), line, fill=TEXT_BODY, font=f_efem_body, anchor="lt")
+            draw.text((tx_e, ty_e), line, fill=TEXT_BLUE_NEWS, font=f_efem_body, anchor="lt")
             ty_e += lh_e
 
     # --- E. PIE DE PÁGINA INSTITUCIONAL ---
