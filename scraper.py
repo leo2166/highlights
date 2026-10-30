@@ -362,7 +362,7 @@ def extraer_resumen_item(item, titular=""):
             clean_desc = re.sub(r'\s+', ' ', clean_desc).strip()
             palabras = [p for p in clean_desc.split() if p]
             if len(palabras) >= 8:
-                resumen = " ".join(palabras[:45])
+                resumen = " ".join(palabras[:65])
                 if not resumen.endswith(('.', '!', '?')):
                     resumen += "..."
                 return resumen
@@ -391,7 +391,7 @@ def extraer_resumen_desde_url(url_articulo, timeout=6):
                 texto = re.sub(r'\s+', ' ', texto).strip()
                 palabras = texto.split()
                 if len(palabras) >= 8:
-                    resumen = " ".join(palabras[:45])
+                    resumen = " ".join(palabras[:65])
                     if not resumen.endswith(('.', '!', '?')):
                         resumen += "..."
                     return resumen
@@ -405,7 +405,7 @@ def extraer_resumen_desde_url(url_articulo, timeout=6):
                     txt = re.sub(r'https?://\S+', '', txt)
                     txt = re.sub(r'\s+', ' ', txt).strip()
                     palabras = txt.split()
-                    resumen = " ".join(palabras[:45])
+                    resumen = " ".join(palabras[:65])
                     if not resumen.endswith(('.', '!', '?')):
                         resumen += "..."
                     return resumen
@@ -457,7 +457,7 @@ def obtener_titulares_multiples(objetivo=5, minimo=4):
         clean = re.sub(r'^[\s\-\u2013\u2014:,]+', '', clean)
         words = clean.strip().split()
         if len(words) >= 6:
-            res = ' '.join(words[:45])
+            res = ' '.join(words[:65])
             if not res.endswith(('.', '!', '?')):
                 res += '...'
             return res
