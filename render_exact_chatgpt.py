@@ -360,7 +360,8 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
         r_lines = wrap_text(resumen, f_news_r1, tw)
         lh_r1 = 22 if es_1920 else (18 if es_1350 else 17)
         ty += (8 if not es_1920 else 12)
-        for line in r_lines[:3]:
+        max_r1 = 7 if es_1920 else (6 if es_1350 else 5)
+        for line in r_lines[:max_r1]:
             if ty + lh_r1 <= y_r1 + h_r1 - 8:
                 draw.text((tx, ty), line, fill=TEXT_BLUE_NEWS, font=f_news_r1, anchor="lt")
                 ty += lh_r1
@@ -396,7 +397,8 @@ def renderizar_boletin_exacto_chatgpt(W, H, datos_bcv, noticias_5, pensamiento, 
         r_lines2 = wrap_text(resumen, f_news_r2, tw2)
         lh_r2 = 20 if es_1920 else (17 if es_1350 else 15)
         ty2 += (6 if not es_1920 else 10)
-        for line in r_lines2[:3]:
+        max_r2 = 8 if es_1920 else (7 if es_1350 else 6)
+        for line in r_lines2[:max_r2]:
             if ty2 + lh_r2 <= y_r2 + h_r2 - 6:
                 draw.text((tx2, ty2), line, fill=TEXT_BLUE_NEWS, font=f_news_r2, anchor="lt")
                 ty2 += lh_r2
